@@ -35,6 +35,9 @@ final class InstallTests: XCTestCase {
         XCTAssertTrue(script!.contains("--strip-components=1"))
         XCTAssertTrue(script!.contains("./deploy/install.sh"))
         XCTAssertTrue(script!.contains("echo v0.4.0 > \(RemotePaths.versionMarker)"))
+        // install.sh's `enable --now` does not restart an already-running service,
+        // so the pipeline must restart explicitly or the old code keeps running.
+        XCTAssertTrue(script!.contains("systemctl restart homeport"))
         // Health checked over ssh.
         XCTAssertTrue(mock.calls.contains { $0.line.contains("localhost:80/healthz") })
     }

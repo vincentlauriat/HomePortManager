@@ -22,6 +22,7 @@ extension HomeportManager {
         ./deploy/install.sh
         echo \(tag) > \(RemotePaths.versionMarker)
         rm -rf /tmp/hpm-src /tmp/hpm-homeport.tar.gz
+        systemctl restart homeport
         """
         let result = try ssh.run(on: machine.ssh, script, sudo: true)
         guard result.succeeded else {
