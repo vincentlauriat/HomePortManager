@@ -12,13 +12,20 @@ public final class HomeportManager {
     public let ssh: SSHClient
     public let releases: ReleaseService
     public let backupRoot: String
+    public let configRoot: String
+    let runner: ProcessRunner   // for local tools (diff); remote work goes through ssh
     public let report: Reporter
 
     public init(ssh: SSHClient, releases: ReleaseService,
-                backupRoot: String = "~/HomePortBackups", report: @escaping Reporter = { print($0) }) {
+                backupRoot: String = "~/HomePortBackups",
+                configRoot: String = "~/.config/hpm/configs",
+                runner: ProcessRunner = DefaultProcessRunner(),
+                report: @escaping Reporter = { print($0) }) {
         self.ssh = ssh
         self.releases = releases
         self.backupRoot = expandPath(backupRoot)
+        self.configRoot = expandPath(configRoot)
+        self.runner = runner
         self.report = report
     }
 

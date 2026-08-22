@@ -5,11 +5,14 @@ import XCTest
 func makeTestManager(mock: MockProcessRunner,
                      backupRoot: String = NSTemporaryDirectory() + "hpm-backups-\(UUID().uuidString)",
                      cacheDir: String = NSTemporaryDirectory() + "hpm-cache-\(UUID().uuidString)",
+                     configRoot: String = NSTemporaryDirectory() + "hpm-configs-\(UUID().uuidString)",
                      report: @escaping Reporter = { _ in }) -> HomeportManager {
     HomeportManager(
         ssh: SSHClient(runner: mock),
         releases: ReleaseService(runner: mock, cacheDir: cacheDir),
         backupRoot: backupRoot,
+        configRoot: configRoot,
+        runner: mock,
         report: report
     )
 }
