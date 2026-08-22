@@ -25,12 +25,18 @@ final class ConfigTests: XCTestCase {
         FileManager.default.createFile(atPath: "\(dir)/\(name)", contents: Data("services: []\n".utf8))
     }
 
-    func testPullFetchesEtcHomeport() throws {
+    func testPullStagesWithSudoThenFetches() throws {
         try seedLocalConfig()
         let files = try manager.configPull(from: machine)
+        // Root-only files (mqtt.env) force a sudo staging step before scp.
+        let staging = mock.calls.compactMap(\.stdin).first { $0.contains("cp -a /etc/homeport/.") }
+        XCTAssertNotNil(staging, "config pull must stage /etc/homeport with sudo")
+        XCTAssertTrue(staging!.contains("chown -R \"$SUDO_USER\""))
         XCTAssertTrue(mock.calls.contains {
-            $0.executable == "/usr/bin/scp" && $0.line.contains("raspcorse:/etc/homeport/*")
+            $0.executable == "/usr/bin/scp" && $0.line.contains("raspcorse:/tmp/hpm-cfg-pull/*")
         })
+        // Staging cleaned up afterwards.
+        XCTAssertTrue(mock.calls.contains { ($0.stdin ?? "").contains("rm -rf /tmp/hpm-cfg-pull") })
         XCTAssertEqual(files, ["services.yaml"])
     }
 

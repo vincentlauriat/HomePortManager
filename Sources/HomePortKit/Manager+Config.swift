@@ -5,6 +5,28 @@ extension HomeportManager {
         "\(configRoot)/\(machineName)"
     }
 
+    /// Config files can be root-only (mqtt.env holds secrets), so a direct scp of
+    /// /etc/homeport fails. Stage them with sudo into /tmp, owned by the SSH user,
+    /// pull from there, then clean up. Callers must call cleanupRemoteStaging after.
+    private static let remoteStaging = "/tmp/hpm-cfg-pull"
+
+    private func stageRemoteConfig(on machine: Machine) throws {
+        let result = try ssh.run(on: machine.ssh, """
+        set -euo pipefail
+        rm -rf \(Self.remoteStaging)
+        mkdir -p \(Self.remoteStaging)
+        cp -a \(RemotePaths.config)/. \(Self.remoteStaging)/
+        chown -R "$SUDO_USER" \(Self.remoteStaging)
+        """, sudo: true)
+        guard result.succeeded else {
+            throw HPMError("cannot stage config on \(machine.name): \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+    }
+
+    private func cleanupRemoteStaging(on machine: Machine) {
+        _ = try? ssh.run(on: machine.ssh, "rm -rf \(Self.remoteStaging)", sudo: true)
+    }
+
     /// Fetches every file from /etc/homeport into the machine's local config dir.
     /// Returns the local filenames.
     @discardableResult
@@ -12,7 +34,9 @@ extension HomeportManager {
         let dir = configDir(for: machine.name)
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         report("Pulling \(RemotePaths.config)/* from \(machine.name)…")
-        try ssh.pull(from: machine.ssh, remotePath: "\(RemotePaths.config)/*", to: dir)
+        try stageRemoteConfig(on: machine)
+        defer { cleanupRemoteStaging(on: machine) }
+        try ssh.pull(from: machine.ssh, remotePath: "\(Self.remoteStaging)/*", to: dir)
         return try FileManager.default.contentsOfDirectory(atPath: dir).sorted()
     }
 
@@ -25,10 +49,13 @@ extension HomeportManager {
         try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
+        try stageRemoteConfig(on: machine)
+        defer { cleanupRemoteStaging(on: machine) }
+
         var chunks: [String] = []
         for name in files {
             let remoteCopy = "\(tempDir)/\(name)"
-            try ssh.pull(from: machine.ssh, remotePath: "\(RemotePaths.config)/\(name)", to: remoteCopy)
+            try ssh.pull(from: machine.ssh, remotePath: "\(Self.remoteStaging)/\(name)", to: remoteCopy)
             let localPath = "\(configDir(for: machine.name))/\(name)"
             let result = try runner.run("/usr/bin/diff", ["-u", remoteCopy, localPath])
             switch result.exitCode {

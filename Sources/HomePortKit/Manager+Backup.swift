@@ -13,11 +13,25 @@ extension HomeportManager {
         "\(backupRoot)/\(machineName)"
     }
 
+    /// Effective data directory: a systemd drop-in may override HOMEPORT_DATA_DIR
+    /// (raspcorse keeps its data on an SSD, not in /var/lib/homeport).
+    public func dataDir(on machine: Machine) throws -> String {
+        let result = try ssh.run(on: machine.ssh,
+                                 "systemctl show \(RemotePaths.unit) -p Environment 2>/dev/null")
+        let overrides = result.stdout
+            .replacingOccurrences(of: "Environment=", with: " ")
+            .split(whereSeparator: { $0 == " " || $0 == "\n" })
+            .filter { $0.hasPrefix("HOMEPORT_DATA_DIR=") }
+            .map { String($0.dropFirst("HOMEPORT_DATA_DIR=".count)) }
+        return overrides.last ?? RemotePaths.data
+    }
+
     /// Archives /etc/homeport + /var/lib/homeport on the machine (keep 3 there),
     /// pulls the archive to the Mac (keep 10 here). Returns the local archive path.
     @discardableResult
     public func backup(on machine: Machine) throws -> String {
         let version = try installedVersion(on: machine)
+        let data = try dataDir(on: machine)
         let stamp = Self.timestampFormatter.string(from: Date())
         let archive = "homeport_\(machine.name)_\(version)_\(stamp).tar.gz"
         let remoteArchive = "\(RemotePaths.backups)/\(archive)"
@@ -31,12 +45,12 @@ extension HomeportManager {
         cp -a \(RemotePaths.config) "$staging/etc-homeport"
         mkdir -p "$staging/var-lib-homeport"
         if command -v sqlite3 >/dev/null 2>&1; then
-          find \(RemotePaths.data) -maxdepth 1 -type f \\( -name '*.db' -o -name '*.sqlite*' \\) | while read -r f; do
+          find \(data) -maxdepth 1 -type f \\( -name '*.db' -o -name '*.sqlite*' \\) | while read -r f; do
             sqlite3 "$f" ".backup '$staging/var-lib-homeport/$(basename "$f")'"
           done
-          find \(RemotePaths.data) -mindepth 1 -maxdepth 1 ! \\( -type f \\( -name '*.db' -o -name '*.sqlite*' \\) \\) -exec cp -a {} "$staging/var-lib-homeport/" \\;
+          find \(data) -mindepth 1 -maxdepth 1 ! \\( -type f \\( -name '*.db' -o -name '*.sqlite*' \\) \\) -exec cp -a {} "$staging/var-lib-homeport/" \\;
         else
-          cp -a \(RemotePaths.data)/. "$staging/var-lib-homeport/"
+          cp -a \(data)/. "$staging/var-lib-homeport/"
         fi
         tar -C "$staging" -czf \(remoteArchive) .
         ls -1t \(RemotePaths.backups)/homeport_\(machine.name)_*.tar.gz | tail -n +4 | xargs -r rm --

@@ -14,6 +14,7 @@ extension HomeportManager {
         }
 
         report("Restoring \((archivePath as NSString).lastPathComponent) on \(machine.name)…")
+        let data = try dataDir(on: machine)
         try ssh.push(archivePath, to: machine.ssh, remotePath: "/tmp/hpm-restore.tar.gz")
 
         let script = """
@@ -23,10 +24,10 @@ extension HomeportManager {
         trap 'rm -rf "$staging" /tmp/hpm-restore.tar.gz' EXIT
         tar -xzf /tmp/hpm-restore.tar.gz -C "$staging"
         test -d "$staging/etc-homeport" && test -d "$staging/var-lib-homeport"
-        rm -rf \(RemotePaths.config) \(RemotePaths.data)
+        rm -rf \(RemotePaths.config) \(data)
         cp -a "$staging/etc-homeport" \(RemotePaths.config)
-        cp -a "$staging/var-lib-homeport" \(RemotePaths.data)
-        chown -R homeport:homeport \(RemotePaths.data)
+        cp -a "$staging/var-lib-homeport" \(data)
+        chown -R homeport:homeport \(data)
         systemctl start homeport
         """
         let result = try ssh.run(on: machine.ssh, script, sudo: true)

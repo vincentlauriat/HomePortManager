@@ -80,4 +80,24 @@ final class BackupTests: XCTestCase {
             XCTAssertTrue("\(error)".contains("disk full"))
         }
     }
+
+    func testDataDirDefaultsWithoutOverride() throws {
+        XCTAssertEqual(try manager.dataDir(on: machine), "/var/lib/homeport")
+    }
+
+    func testDataDirTakesLastDropInOverride() throws {
+        mock.stub(matching: "-p Environment",
+                  stdout: "Environment=HOMEPORT_CONFIG_DIR=/etc/homeport HOMEPORT_DATA_DIR=/var/lib/homeport HOMEPORT_PORT=80 HOMEPORT_DATA_DIR=/mnt/ssd/homeport-data\n")
+        XCTAssertEqual(try manager.dataDir(on: machine), "/mnt/ssd/homeport-data")
+    }
+
+    func testBackupUsesEffectiveDataDir() throws {
+        mock.stub(matching: "-p Environment",
+                  stdout: "Environment=HOMEPORT_DATA_DIR=/mnt/ssd/homeport-data\n")
+        mock.stub(matching: ".hpm-version", stdout: "v0.5.0\n")
+        _ = try manager.backup(on: machine)
+        let script = mock.calls.compactMap(\.stdin).first { $0.contains("tar -C") }!
+        XCTAssertTrue(script.contains("/mnt/ssd/homeport-data"))
+        XCTAssertFalse(script.contains("find /var/lib/homeport"))
+    }
 }
