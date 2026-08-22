@@ -1,0 +1,22 @@
+# Session/tracking docs (local only)
+COMMANDS.md
+MEMORY.md
+CHANGES.md
+TODOS.md
+PLAN.md
+
+# Swift
+.build/
+.swiftpm/
+DerivedData/
+
+# Release artifacts
+*.dmg
+*.zip
+*.tar.gz
+
+# macOS
+.DS_Store
+
+# OMC
+.omc/
