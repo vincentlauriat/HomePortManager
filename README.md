@@ -58,6 +58,18 @@ state transitions only, refresh every 5 min. Restore/remove stay CLI-only by des
 
 Build a signed, notarized DMG: `./Scripts/release.sh <version>` → `release/HomePortManager-<version>.dmg`.
 
+## Roadmap — unified control center
+
+Planned next (designed, not built yet): a **control center window** opened from the menu bar
+app — fleet dashboard, per-machine tabs (summary, embedded Homeport dashboard, logs, events,
+metrics, backups, shell, updates), a central task journal, scheduled backups that run on the
+Pi itself via systemd timers, and historised metrics served by Homeport's own API. Trilingual
+UI (French, English, Chinese).
+
+- [ ] Epic 1 — pilot the fleet from a single window
+- [ ] Epic 2 — events and metrics (needs a matching API in the Homeport repo)
+- [ ] Epic 3 — scheduled backups, updates, integrated shell
+
 ## Design notes
 
 - One Swift package: `HomePortKit` (all logic, fully unit-tested against a mocked process
