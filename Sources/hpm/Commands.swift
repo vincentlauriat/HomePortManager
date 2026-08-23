@@ -64,15 +64,26 @@ struct StatusCmd: ParsableCommand {
         let manager = makeManager()
         let latest = (try? manager.releases.latest().tag) ?? "?"
 
-        var rows: [[String]] = [["NAME", "VERSION", "LATEST", "SERVICE", "HEALTH", "LAST BACKUP"]]
+        // Query machines concurrently; each status is one ssh round-trip.
+        var statuses = [String: MachineStatus]()
+        let lock = NSLock()
+        DispatchQueue.concurrentPerform(iterations: targets.count) { i in
+            let status = try? makeManager { _ in }.status(of: targets[i])
+            lock.lock(); statuses[targets[i].name] = status; lock.unlock()
+        }
+
+        var rows: [[String]] = [["NAME", "VERSION", "LATEST", "SERVICE", "UPTIME", "HEALTH", "DISK", "SSH", "LAST BACKUP"]]
         for target in targets {
-            let status = try manager.status(of: target)
+            guard let status = statuses[target.name] else { continue }
             rows.append([
                 status.name,
                 status.installedVersion,
                 latest,
                 status.reachable ? (status.serviceActive ? "active" : "inactive") : "unreachable",
+                formatUptime(status.uptimeSeconds),
                 status.reachable ? (status.healthzOK ? "OK" : "FAIL") : "-",
+                status.diskUsedPercent.map { "\($0)%" } ?? "-",
+                status.sshLatencyMs.map { "\($0)ms" } ?? "-",
                 status.lastBackup ?? "none",
             ])
         }
@@ -137,8 +148,9 @@ struct UpdateCmd: ParsableCommand {
 
     func run() throws {
         let targets = try resolveTargets(machine: machine, all: all)
-        let manager = makeManager()
-        try forEachMachine(targets) { try manager.update(on: $0, version: version) }
+        try forEachMachine(targets) { target, manager in
+            try manager.update(on: target, version: version)
+        }
     }
 }
 
@@ -151,10 +163,9 @@ struct BackupCmd: ParsableCommand {
 
     func run() throws {
         let targets = try resolveTargets(machine: machine, all: all)
-        let manager = makeManager()
-        try forEachMachine(targets) { target in
+        try forEachMachine(targets) { target, manager in
             let path = try manager.backup(on: target)
-            print("  ✓ \(path)")
+            manager.report("✓ \(path)")
         }
     }
 }
@@ -234,6 +245,53 @@ struct ConfigCmd: ParsableCommand {
             }
             try manager.configPush(to: target, file: file)
         }
+    }
+}
+
+// MARK: - logs / restart / doctor
+
+struct LogsCmd: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "logs", abstract: "Show the homeport service journal.")
+    @Argument var machine: String
+    @Option(name: [.customShort("n"), .customLong("lines")], help: "Number of lines.") var lines: Int = 50
+    @Flag(name: [.customShort("f"), .customLong("follow")], help: "Stream live (Ctrl-C to quit).") var follow = false
+
+    func run() throws {
+        let target = try FleetStore().machine(named: machine)
+        if follow {
+            // Live stream: hand the terminal to ssh directly (Ctrl-C stops it).
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = ["-t", target.ssh, "sudo journalctl -u homeport.service -n \(lines) -f --no-pager"]
+            try process.run()
+            process.waitUntilExit()
+        } else {
+            print(try makeManager().logs(on: target, lines: lines), terminator: "")
+        }
+    }
+}
+
+struct RestartCmd: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "restart", abstract: "Restart the homeport service and verify healthz.")
+    @Argument var machine: String
+
+    func run() throws {
+        let target = try FleetStore().machine(named: machine)
+        try makeManager().restart(on: target)
+    }
+}
+
+struct DoctorCmd: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "doctor", abstract: "Full diagnosis: prereqs, service, healthz, version coherence, disk, config drift.")
+    @Argument var machine: String
+
+    func run() throws {
+        let target = try FleetStore().machine(named: machine)
+        let checks = try makeManager().doctor(on: target)
+        for check in checks {
+            print("\(check.ok ? "✓" : "✗") \(check.name)\(check.ok ? "" : " — \(check.detail)")")
+        }
+        if checks.contains(where: { !$0.ok }) { throw ExitCode(1) }
     }
 }
 

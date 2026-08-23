@@ -10,20 +10,20 @@ struct HPM: ParsableCommand {
         subcommands: [
             MachineCmd.self, StatusCmd.self, ReleasesCmd.self, PrereqsCmd.self,
             InstallCmd.self, UpdateCmd.self, BackupCmd.self, RestoreCmd.self,
-            ConfigCmd.self, RemoveCmd.self,
+            ConfigCmd.self, RemoveCmd.self, LogsCmd.self, RestartCmd.self, DoctorCmd.self,
         ]
     )
 }
 
 // MARK: - Shared helpers
 
-func makeManager() -> HomeportManager {
+func makeManager(report: @escaping Reporter = { print("  \($0)") }) -> HomeportManager {
     let runner = DefaultProcessRunner()
     return HomeportManager(
         ssh: SSHClient(runner: runner),
         releases: ReleaseService(runner: runner),
         runner: runner,
-        report: { print("  \($0)") }
+        report: report
     )
 }
 
@@ -50,17 +50,41 @@ func resolveTargets(machine: String?, all: Bool) throws -> [Machine] {
     return [try FleetStore().machine(named: name)]
 }
 
-/// Runs an operation per machine, prints a final summary, exits 1 if any failed.
-func forEachMachine(_ machines: [Machine], _ operation: (Machine) throws -> Void) throws {
+/// Runs an operation per machine — concurrently when there are several — with output
+/// buffered per machine so lines never interleave. Prints a final summary and exits 1
+/// if any machine failed. Each machine gets its own manager wired to its buffer.
+func forEachMachine(_ machines: [Machine], _ operation: @escaping (Machine, HomeportManager) throws -> Void) throws {
+    let lock = NSLock()
     var failures: [String: String] = [:]
+    var outputs: [String: String] = [:]
+
+    let work: (Machine) -> Void = { machine in
+        var buffer = ""
+        let bufferLock = NSLock()
+        let manager = makeManager { line in
+            bufferLock.lock(); buffer += "  \(line)\n"; bufferLock.unlock()
+        }
+        var failure: String?
+        do {
+            try operation(machine, manager)
+        } catch {
+            failure = "\(error)"
+        }
+        lock.lock()
+        outputs[machine.name] = buffer + (failure.map { "  ✗ \($0)\n" } ?? "")
+        if let failure { failures[machine.name] = failure }
+        lock.unlock()
+    }
+
+    if machines.count > 1 {
+        DispatchQueue.concurrentPerform(iterations: machines.count) { work(machines[$0]) }
+    } else {
+        machines.forEach(work)
+    }
+
     for machine in machines {
         print("── \(machine.name) ──")
-        do {
-            try operation(machine)
-        } catch {
-            failures[machine.name] = "\(error)"
-            print("  ✗ \(error)")
-        }
+        print(outputs[machine.name] ?? "", terminator: "")
     }
     if machines.count > 1 {
         print("\nSummary:")
