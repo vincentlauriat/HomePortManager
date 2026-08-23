@@ -26,6 +26,12 @@ targets:
         CFBundleVersion: "1"
         LSUIElement: true
         NSHumanReadableCopyright: "© Vincent Lauriat — MIT"
+        # AD-3: the single App Transport Security exception — plain HTTP on the tailnet,
+        # whose hosts (MagicDNS names, 100.x addresses) cannot be enumerated per domain.
+        # Shared by the dashboard WKWebView and the future Homeport API client (epic 2);
+        # no story adds its own bypass, no other ATS key exists anywhere.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.lauriat.homeport-manager

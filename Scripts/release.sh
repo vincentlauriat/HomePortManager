@@ -41,6 +41,14 @@ xcodebuild -project HomePortMenu.xcodeproj \
 APP="$APP_DIR/build/Build/Products/Release/$APP_NAME.app"
 [ -d "$APP" ] || { echo "✗ Build did not produce $APP" >&2; exit 1; }
 
+# The embedded dashboard (and the future API client) is dead without the AD-3 ATS
+# exception: a project.yml that lost the key would still build green, so assert it here.
+if [ "$(/usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity:NSAllowsArbitraryLoads" \
+    "$APP/Contents/Info.plist" 2>/dev/null)" != "true" ]; then
+  echo "✗ Info.plist lacks NSAppTransportSecurity/NSAllowsArbitraryLoads (AD-3): the embedded dashboard cannot load HTTP — check App/project.yml" >&2
+  exit 1
+fi
+
 # 4. Stage clean, sign with Hardened Runtime (timestamp server can be flaky → retries).
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-Developer ID Application: Vincent LAURIAT (KFLACS69T9)}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-AppliMacVincentGithub}"

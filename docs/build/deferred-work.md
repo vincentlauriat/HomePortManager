@@ -81,3 +81,19 @@ source_spec: `spec-1-3-actions-machine-avec-confirmations.md`
 severity: low
 reason: The follow-up-review damping cap (limits.max_followup_reviews = 1) was spent with the story finalized (status: done, verify green) while the review pass still recommended an independent follow-up. The work was committed by bmad-loop run 20260823-185918-2f6f; this entry preserves the lingering recommendation for a deliberate later review.
 status: open
+
+### DW-10: La machine à états du cache Dashboard (verdict d'échec, garde de rechargement, politique de navigation externe, prune) n'a aucune vérification exécutable.
+origin: spec-deferred f8b7020d298c
+location: App/Sources/DashboardTabView.swift
+source_spec: `spec-1-4-dashboard-homeport-intégré.md`
+severity: medium
+reason: Même parapluie pré-existant que DW-7/DW-8 : le target App n'a aucun test (Package.swift ne déclare que HomePortKitTests, App/project.yml une seule target application). Inverser le filtre NSURLErrorCancelled de fail(_:) ou le prédicat de prune(keeping:) laisse `swift test` vert. Piste : extraire le réducteur de verdict (fail/didCommit/retry/terminate, filtres de codes) en type HomePortKit testable, la WKWebView restant côté app — ou ajouter un bundle de tests app au xcodeproj.
+status: open
+
+### DW-11: Follow-up review still recommended for 1-4-dashboard-homeport-intégré after the damping cap was spent
+origin: review-budget-followup
+location: n/a
+source_spec: `spec-1-4-dashboard-homeport-intégré.md`
+severity: low
+reason: The follow-up-review damping cap (limits.max_followup_reviews = 1) was spent with the story finalized (status: done, verify green) while the review pass still recommended an independent follow-up. The work was committed by bmad-loop run 20260823-185918-2f6f; this entry preserves the lingering recommendation for a deliberate later review.
+status: open

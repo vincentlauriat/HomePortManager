@@ -147,6 +147,9 @@ struct ControlCenterView: View {
     @ObservedObject var commands: ControlCenterCommands
     @State private var selection: ControlCenterSelection = .fleet
     @FocusState private var focusedRow: ControlCenterSelection?
+    /// Owned here, not by the machine sheet: `MachineDetailView` is recreated per machine
+    /// (`.id(machine.name)`), and the dashboard web views must survive that.
+    @StateObject private var webCache = DashboardWebCache()
 
     var body: some View {
         NavigationSplitView {
@@ -176,7 +179,9 @@ struct ControlCenterView: View {
         }
         .onChange(of: model.machines.map(\.name)) { names in
             // The selected machine was removed from fleet.yaml: fall back on the fleet
-            // rather than keeping a selection that points at nothing.
+            // rather than keeping a selection that points at nothing. Its dashboard web
+            // view dies with it — cached state never outlives the declaration.
+            webCache.prune(keeping: names)
             if case .machine(let name) = selection, !names.contains(name) {
                 selection = .fleet
             }
@@ -241,7 +246,8 @@ struct ControlCenterView: View {
             fleetOverview
         case .machine(let name):
             if let machine = model.machines.first(where: { $0.name == name }) {
-                MachineDetailView(model: model, commands: commands, machine: machine)
+                MachineDetailView(model: model, commands: commands, webCache: webCache,
+                                  machine: machine)
                     // A fresh tab state per machine, so ⌘3 on one does not stick to the next.
                     .id(machine.name)
             } else {

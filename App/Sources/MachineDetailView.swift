@@ -28,12 +28,11 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// What is not here yet, and who brings it. Only Dashboard and Logs have a story
-    /// number in this epic; the rest arrive with later epics and are not invented one.
+    /// What is not here yet, and who brings it. Only Logs still has a story number in
+    /// this epic; the rest arrive with later epics and are not invented one.
     var pendingMessage: LocalizedStringKey? {
         switch self {
-        case .summary: return nil
-        case .dashboard: return "The machine's Homeport dashboard is embedded here by story 1.4."
+        case .summary, .dashboard: return nil
         case .logs: return "Centralized logs, continuous follow and text filter arrive with story 1.5."
         case .events: return "The event stream arrives with the Homeport API, in a later epic."
         case .metrics: return "Metric charts arrive with the Homeport API, in a later epic."
@@ -49,6 +48,9 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
 struct MachineDetailView: View {
     @ObservedObject var model: FleetModel
     @ObservedObject var commands: ControlCenterCommands
+    /// Owned by the window's root view: the dashboard's page state must survive this
+    /// view, which `.id(machine.name)` recreates on every machine switch.
+    let webCache: DashboardWebCache
     let machine: Machine
 
     @State private var tab: MachineTab = .summary
@@ -74,9 +76,16 @@ struct MachineDetailView: View {
                           block: model.block(for: machine.name), severity: severity,
                           activity: model.inFlight[machine.name]?.progressLabel)
             tabBar
-            ScrollView {
-                content
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            // The dashboard scrolls inside its own web view: nesting it in the sheet's
+            // ScrollView would collapse its height and fight its wheel events.
+            if tab == .dashboard {
+                DashboardTabView(model: model, cache: webCache, machine: machine)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                ScrollView {
+                    content
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .padding(Theme.Spacing.lg)

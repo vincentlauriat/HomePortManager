@@ -24,6 +24,29 @@
         }
       }
     },
+    "%@ is unreachable. Check Tailscale or retry.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is unreachable. Check Tailscale or retry."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est injoignable. Vérifiez Tailscale ou réessayez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法访问 %@。请检查 Tailscale 或重试。"
+          }
+        }
+      }
+    },
     "%@: %@ failed": {
       "extractionState": "manual",
       "localizations": {
@@ -550,6 +573,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "仪表盘"
+          }
+        }
+      }
+    },
+    "Dashboard did not load": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dashboard did not load"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le tableau de bord ne s'est pas chargé"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仪表盘未能加载"
           }
         }
       }
@@ -1406,6 +1452,29 @@
         }
       }
     },
+    "No dashboard address": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No dashboard address"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune adresse de tableau de bord"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有仪表盘地址"
+          }
+        }
+      }
+    },
     "No machine matches": {
       "extractionState": "manual",
       "localizations": {
@@ -1517,6 +1586,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无任务"
+          }
+        }
+      }
+    },
+    "No web address can be derived from the ssh target of %@. Fix its entry in fleet.yaml.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No web address can be derived from the ssh target of %@. Fix its entry in fleet.yaml."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune adresse web ne peut être dérivée de la cible ssh de %@. Corrigez son entrée dans fleet.yaml."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法从 %@ 的 ssh 目标推导出网页地址。请修正它在 fleet.yaml 中的条目。"
           }
         }
       }
@@ -2373,6 +2465,29 @@
         }
       }
     },
+    "The dashboard of %@ did not respond. Check that Homeport is running, then retry.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The dashboard of %@ did not respond. Check that Homeport is running, then retry."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le tableau de bord de %@ n'a pas répondu. Vérifiez que Homeport tourne, puis réessayez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的仪表盘未响应。请检查 Homeport 是否在运行，然后重试。"
+          }
+        }
+      }
+    },
     "The embedded terminal arrives in a later epic.": {
       "extractionState": "manual",
       "localizations": {
@@ -2415,29 +2530,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "事件流将随 Homeport API 在后续 epic 中提供。"
-          }
-        }
-      }
-    },
-    "The machine's Homeport dashboard is embedded here by story 1.4.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The machine's Homeport dashboard is embedded here by story 1.4."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le tableau de bord Homeport de la machine s'intègre ici avec la story 1.4."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "该机器的 Homeport 仪表盘将由 story 1.4 嵌入此处。"
           }
         }
       }
