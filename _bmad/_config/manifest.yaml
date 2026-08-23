@@ -1,0 +1,42 @@
+installation:
+  version: 6.11.0
+  installDate: 2026-08-23T10:00:44.709Z
+  lastUpdated: 2026-08-23T10:00:44.709Z
+modules:
+  - name: core
+    version: 6.11.0
+    installDate: 2026-08-23T10:00:44.623Z
+    lastUpdated: 2026-08-23T10:00:44.707Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+  - name: bmm
+    version: 6.11.0
+    installDate: 2026-08-23T10:00:44.674Z
+    lastUpdated: 2026-08-23T10:00:44.707Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+  - name: bmad-loop
+    version: main
+    installDate: 2026-08-23T10:00:44.679Z
+    lastUpdated: 2026-08-23T10:00:44.708Z
+    source: external
+    npmPackage: null
+    repoUrl: https://github.com/bmad-code-org/bmad-loop
+    channel: next
+    sha: 797acf0145618a7e509662481173da92c302688e
+  - name: cis
+    version: main
+    installDate: 2026-08-23T10:00:44.689Z
+    lastUpdated: 2026-08-23T10:00:44.709Z
+    source: external
+    npmPackage: bmad-creative-intelligence-suite
+    repoUrl: https://github.com/bmad-code-org/bmad-module-creative-intelligence-suite
+    channel: next
+    sha: 0e4ff9233a792db1a1cd00f22a482f338168cdc3
+ides:
+  - claude-code
+  - codex
+  - antigravity-cli
+  - antigravity

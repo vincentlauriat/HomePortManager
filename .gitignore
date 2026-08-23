@@ -24,3 +24,10 @@ DerivedData/
 # Xcode build artifacts (App/)
 App/build/
 *.xcodeproj
+.bmad-loop/runs/
+.bmad-loop/cache/
+
+# Installed agent skills (reinstallable tooling, not project content)
+.agent/
+.agents/
+.claude/skills/
