@@ -1,6 +1,7 @@
 name: HomePortMenu
 options:
   bundleIdPrefix: fr.lauriat
+  developmentLanguage: en
   deploymentTarget:
     macOS: "13.0"
   createIntermediateGroups: true

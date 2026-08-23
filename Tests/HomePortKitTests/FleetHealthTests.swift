@@ -49,6 +49,23 @@ final class FleetHealthTests: XCTestCase {
         XCTAssertEqual(transitions(old: status(reachable: false), new: status()), ["m is reachable again"])
     }
 
+    func testBackupTimestampIsTheOnlyExtraction() {
+        XCTAssertNil(backupTimestamp(nil))
+        XCTAssertNil(backupTimestamp("garbage"), "a name without a stamp carries no instant")
+        XCTAssertNil(backupTimestamp("homeport_m_v0.5.0_.tar.gz"))
+        let formatter = HomeportManager.timestampFormatter
+        let when = Date(timeIntervalSince1970: 1_699_999_000)
+        let archive = "homeport_m_v0.5.0_\(formatter.string(from: when)).tar.gz"
+        XCTAssertEqual(backupTimestamp(archive), when)
+
+        // The age and the date are two renderings of one parse: whenever one says there is
+        // no backup, the other must say so too.
+        for name in [nil, "garbage", "homeport_m_v0.5.0_.tar.gz", archive] as [String?] {
+            XCTAssertEqual(backupAge(name) == "never", backupTimestamp(name) == nil,
+                           "backupAge and backupTimestamp disagree on \(name ?? "nil")")
+        }
+    }
+
     func testBackupAge() {
         XCTAssertEqual(backupAge(nil), "never")
         XCTAssertEqual(backupAge("garbage"), "never")

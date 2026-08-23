@@ -16,7 +16,7 @@ enum LogsWindow {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 460),
                               styleMask: [.titled, .closable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "Logs — \(machine.name)"
+        window.title = String(localized: "Logs — \(machine.name)")
         window.contentView = NSHostingView(rootView: LogsView(machine: machine, model: model))
         window.isReleasedWhenClosed = false
         window.center()
@@ -29,7 +29,7 @@ enum LogsWindow {
 struct LogsView: View {
     let machine: Machine
     let model: FleetModel
-    @State private var text = "Loading…"
+    @State private var text = String(localized: "Loading…")
     @State private var loading = false
 
     var body: some View {
@@ -45,7 +45,7 @@ struct LogsView: View {
             HStack {
                 Spacer()
                 if loading { ProgressView().controlSize(.small) }
-                Button("Refresh") { load() }.disabled(loading)
+                Button { load() } label: { Text("Refresh") }.disabled(loading)
             }
             .padding(8)
         }

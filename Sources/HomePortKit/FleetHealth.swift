@@ -4,12 +4,21 @@ import Foundation
 public enum FleetHealth: Equatable {
     case allGreen
     case warning
-    case unknown   // no data yet
+    case unknown   // nothing declared to have an opinion about
 
-    public static func aggregate(_ statuses: [MachineStatus], latest: String?) -> FleetHealth {
+    /// The icon is the third reading of the machine verdict, next to the status pill and the
+    /// menu bar dot, so it goes through the same `severity(of:latest:)`.
+    ///
+    /// `nil` is a machine the app has declared but not yet observed, and it is passed in
+    /// rather than filtered out: dropping it let the icon claim `allGreen` while the fleet
+    /// table showed `CRITICAL` for that very machine. Unobserved weighs exactly what it
+    /// weighs everywhere else — `severity(of: nil) == .critical`. `unknown` is therefore
+    /// reserved for the one case where there is nothing to be green or red about: no
+    /// machine declared at all.
+    public static func aggregate(_ statuses: [MachineStatus?], latest: String?) -> FleetHealth {
         guard !statuses.isEmpty else { return .unknown }
-        let anyWarning = statuses.contains { !machineWarnings($0, latest: latest).isEmpty }
-        return anyWarning ? .warning : .allGreen
+        let allOK = statuses.allSatisfy { severity(of: $0, latest: latest) == .ok }
+        return allOK ? .allGreen : .warning
     }
 }
 
@@ -46,12 +55,24 @@ public func transitions(old: MachineStatus?, new: MachineStatus) -> [String] {
     return messages
 }
 
+/// The instant encoded in a backup archive name — `homeport_<machine>_<version>_<stamp>.tar.gz`
+/// as `backup(on:)` writes it — or `nil` when there is no archive and when the name carries no
+/// timestamp at all.
+///
+/// The single timestamp extraction of the kit. `backupAge` renders it as the CLI's compact
+/// English age; the interface renders the same `Date` through a localized `FormatStyle`. Two
+/// readings, one parser: a name either has an instant in it or it has none, and the two
+/// surfaces can never disagree about which.
+public func backupTimestamp(_ archiveName: String?) -> Date? {
+    guard let archiveName,
+          let stamp = archiveName.range(of: #"\d{8}-\d{6}"#, options: .regularExpression)
+    else { return nil }
+    return HomeportManager.timestampFormatter.date(from: String(archiveName[stamp]))
+}
+
 /// "2h ago", "3d ago" — backup age for menu rows, from the archive's timestamp suffix.
 public func backupAge(_ archiveName: String?, now: Date = Date()) -> String {
-    guard let archiveName,
-          let stampRange = archiveName.range(of: #"\d{8}-\d{6}"#, options: .regularExpression),
-          let date = HomeportManager.timestampFormatter.date(from: String(archiveName[stampRange]))
-    else { return "never" }
+    guard let date = backupTimestamp(archiveName) else { return "never" }
     let seconds = Int(now.timeIntervalSince(date))
     if seconds < 3_600 { return "\(max(seconds / 60, 0))m ago" }
     if seconds < 86_400 { return "\(seconds / 3_600)h ago" }

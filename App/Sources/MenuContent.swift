@@ -13,9 +13,21 @@ struct MenuContent: View {
                 if model.refreshing { ProgressView().controlSize(.small) }
             }
             Divider()
+            // The control center has no other entry point.
+            Button { ControlCenterWindow.open(model: model) } label: {
+                Label("Open the control center", systemImage: "macwindow")
+            }
+            .keyboardShortcut("o")
+            .buttonStyle(.link)
+            .accessibilityLabel(Text("Open the control center"))
+            Divider()
             if model.machines.isEmpty {
-                Text("No machines declared.\nRun: hpm machine add <name> --ssh <host>")
-                    .font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("No machines declared.")
+                    Text(verbatim: "hpm machine add <name> --ssh <host>")
+                        .textSelection(.enabled)
+                }
+                .font(.caption).foregroundStyle(.secondary)
             }
             ForEach(model.machines, id: \.name) { machine in
                 MachineRow(model: model, machine: machine)
@@ -29,17 +41,19 @@ struct MenuContent: View {
 
     private var footer: some View {
         HStack {
-            Button("Backup all") {
-                model.machines.forEach { model.run(.backup, on: $0) }
+            Button { model.machines.forEach { model.run(.backup, on: $0) } } label: {
+                Text("Backup all")
             }
             .disabled(model.machines.isEmpty || !model.inFlight.isEmpty)
-            Button("Refresh") { model.refresh() }
+            Button { model.refresh() } label: { Text("Refresh") }
                 .disabled(model.refreshing)
-            Button("Edit fleet") {
+            Button {
                 NSWorkspace.shared.open(URL(fileURLWithPath: expandPath(FleetStore.defaultPath)))
+            } label: {
+                Text("Edit fleet")
             }
             Spacer()
-            Button("Quit") { NSApp.terminate(nil) }
+            Button { NSApp.terminate(nil) } label: { Text("Quit") }
         }
         .controlSize(.small)
     }
@@ -50,17 +64,20 @@ struct MachineRow: View {
     let machine: Machine
 
     private var status: MachineStatus? { model.statuses[machine.name] }
-    private var warnings: [String] {
-        status.map { machineWarnings($0, latest: model.latestTag) } ?? []
+    /// The same list the control center reads — including `.unreachable`, which is why the
+    /// warning line no longer vanishes exactly when the machine has a problem.
+    private var issues: [MachineIssue] {
+        machineIssues(status, latest: model.latestTag)
     }
+    private var reasons: [LocalizedStringKey] { statusReasons(issues) }
     private var busy: Bool { model.inFlight.contains(machine.name) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Circle().fill(dotColor).frame(width: 9, height: 9)
-                Text(machine.name).fontWeight(.semibold)
-                Text(versionText).foregroundStyle(.secondary).font(.caption)
+                Text(verbatim: machine.name).fontWeight(.semibold)
+                versionText.foregroundStyle(.secondary).font(.caption)
                 Spacer()
                 if busy {
                     ProgressView().controlSize(.small)
@@ -69,17 +86,19 @@ struct MachineRow: View {
                 }
             }
             if let status, status.reachable {
-                Text("up \(formatUptime(status.uptimeSeconds)) · disk \(status.diskUsedPercent.map { "\($0)%" } ?? "-") · backup \(backupAge(status.lastBackup))")
+                Text("Uptime \(uptime) · Disk \(disk) · Backup \(backup)")
                     .font(.caption).foregroundStyle(.secondary)
                     .padding(.leading, 15)
             }
-            ForEach(warnings, id: \.self) { warning in
-                Label(warning, systemImage: "exclamationmark.triangle")
+            // `LocalizedStringKey` is not Hashable: the position is the identity here.
+            ForEach(Array(reasons.enumerated()), id: \.offset) { _, reason in
+                Label { Text(reason) } icon: { Image(systemName: "exclamationmark.triangle") }
                     .font(.caption).foregroundStyle(.orange)
                     .padding(.leading, 15)
             }
             if let error = model.lastError[machine.name] {
-                Label(error, systemImage: "xmark.octagon")
+                // Machine output: shown as produced, never translated.
+                Label { Text(verbatim: error) } icon: { Image(systemName: "xmark.octagon") }
                     .font(.caption).foregroundStyle(.red)
                     .padding(.leading, 15)
                     .lineLimit(3)
@@ -91,56 +110,95 @@ struct MachineRow: View {
         HStack(spacing: 8) {
             Button { model.run(.backup, on: machine) } label: {
                 Image(systemName: "archivebox")
-            }.help("Backup now")
+            }
+            .help(Text("Backup now"))
+            .accessibilityLabel(Text("Backup now"))
             Button {
-                if confirm("Restart homeport on \(machine.name)?") {
+                if confirm(String(localized: "Restart homeport on \(machine.name)?")) {
                     model.run(.restart, on: machine)
                 }
             } label: {
                 Image(systemName: "arrow.clockwise.circle")
-            }.help("Restart service")
+            }
+            .help(Text("Restart service"))
+            .accessibilityLabel(Text("Restart service"))
             Button {
-                let target = model.latestTag ?? "latest"
-                if confirm("Update \(machine.name) to \(target)? A backup is taken first.") {
+                // Unreachable when `latestTag` is nil: the button is disabled in that case.
+                guard let latest = model.latestTag else { return }
+                if confirm(String(localized: "Update \(machine.name) to \(latest)? A backup is taken first.")) {
                     model.run(.update, on: machine)
                 }
             } label: {
                 Image(systemName: "square.and.arrow.down")
             }
-            .help(model.latestTag == nil ? "GitHub unreachable — latest version unknown" : "Update (backup first)")
+            // P10: VoiceOver has to hear *why* the button is dead, exactly as the tooltip
+            // says it — a fixed label announces an action that cannot be taken.
+            .help(updateLabel)
+            .accessibilityLabel(updateLabel)
             .disabled(model.latestTag == nil)
             Button { LogsWindow.open(for: machine, model: model) } label: {
                 Image(systemName: "doc.text.magnifyingglass")
-            }.help("Show logs")
+            }
+            .help(Text("Show logs"))
+            .accessibilityLabel(Text("Show logs"))
         }
         .buttonStyle(.borderless)
         .disabled(status?.reachable != true)
     }
 
+    /// The menu bar dot and the control center's pill must never say different things about
+    /// the same machine: both colour a `severity`, and the severity comes from the kit.
     private var dotColor: Color {
-        guard let status else { return .gray }
-        guard status.reachable else { return .gray }
-        if status.serviceActive && status.healthzOK {
-            return warnings.isEmpty ? .green : .yellow
-        }
-        return .red
+        Theme.color(of: HomePortKit.severity(of: issues))
     }
 
-    private var versionText: String {
-        guard let status else { return "…" }
-        guard status.reachable else { return "unreachable" }
-        if let latest = model.latestTag, status.installedVersion != "unknown",
-           status.installedVersion != latest {
-            return "\(status.installedVersion) → \(latest)"
+    @ViewBuilder
+    private var versionText: some View {
+        if let status {
+            if status.reachable {
+                if let latest = issues.availableUpdate {
+                    Text(verbatim: "\(status.installedVersion) → \(latest)")
+                } else {
+                    Text(verbatim: status.installedVersion)
+                }
+            } else {
+                Text("Unreachable")
+            }
+        } else {
+            Text(verbatim: "…")
         }
-        return status.installedVersion
+    }
+
+    private var updateLabel: Text {
+        model.latestTag == nil
+            ? Text("GitHub unreachable — latest version unknown")
+            : Text("Update (backup first)")
+    }
+
+    /// Durations, sizes and dates are shown to a human, so they go through a localized
+    /// `FormatStyle` rather than the kit's compact English forms, which the CLI owns.
+    private var uptime: String {
+        guard let seconds = status?.uptimeSeconds else { return "—" }
+        return Duration.seconds(seconds)
+            .formatted(.units(allowed: [.days, .hours, .minutes], width: .abbreviated))
+    }
+
+    private var disk: String {
+        status?.diskUsedPercent.map(FleetOverviewView.percent) ?? "—"
+    }
+
+    private var backup: String {
+        guard let date = backupTimestamp(status?.lastBackup) else {
+            return String(localized: "never")
+        }
+        return date.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated))
     }
 
     private func confirm(_ text: String) -> Bool {
         let alert = NSAlert()
         alert.messageText = text
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "OK"))   // the button's word, not the pill's
+        alert.addButton(withTitle: String(localized: "Cancel"))
         NSApp.activate(ignoringOtherApps: true)
         return alert.runModal() == .alertFirstButtonReturn
     }
