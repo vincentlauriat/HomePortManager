@@ -122,6 +122,9 @@ final class JournalSeamTests: XCTestCase {
 
         _ = try manager.status(of: machine)
         _ = try manager.logs(on: machine, lines: 10)
+        // The Logs tab's follow is a read like the other two, and a far worse one to
+        // journal: it restarts on every tab visit and every Follow toggle.
+        _ = try manager.followLogs(on: machine)
 
         XCTAssertEqual(try XCTUnwrap(manager.history).tasks().count, 0,
                        "reads must leave the journal untouched")
@@ -208,6 +211,9 @@ final class JournalSeamTests: XCTestCase {
         _ = try manager.doctor(on: machine)
         _ = try manager.configPull(from: machine)
         _ = try manager.prereqs(on: machine, fix: false)
+        // Reading a journal must not wait on whoever holds the machine: an operator
+        // watching the logs of a running backup is the case this exists for.
+        _ = try manager.followLogs(on: machine)
 
         let lock = try XCTUnwrap(holder.currentLock(machine: "raspcorse"))
         XCTAssertEqual(lock.pid, getpid())

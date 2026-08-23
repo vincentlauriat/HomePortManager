@@ -28,17 +28,29 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// What is not here yet, and who brings it. Only Logs still has a story number in
-    /// this epic; the rest arrive with later epics and are not invented one.
+    /// What is not here yet, and who brings it. Every remaining tab arrives with a later
+    /// epic; none of them is invented a story number here.
     var pendingMessage: LocalizedStringKey? {
         switch self {
-        case .summary, .dashboard: return nil
-        case .logs: return "Centralized logs, continuous follow and text filter arrive with story 1.5."
+        case .summary, .dashboard, .logs: return nil
         case .events: return "The event stream arrives with the Homeport API, in a later epic."
         case .metrics: return "Metric charts arrive with the Homeport API, in a later epic."
         case .backups: return "Backup jobs and restores arrive in a later epic."
         case .shell: return "The embedded terminal arrives in a later epic."
         case .updates: return "Guided updates arrive in a later epic."
+        }
+    }
+
+    /// Tabs that take the whole sheet and scroll inside their own surface. Nesting them in
+    /// the sheet's `ScrollView` would collapse their height and fight their wheel events —
+    /// true of the dashboard's web view and of the log viewer alike.
+    /// Every case is named rather than defaulted: a tab added to the enum has to answer this
+    /// question explicitly, which is also what makes `fullTab`'s exhaustive switch the visible
+    /// failure it claims to be — a `default:` here would route the new tab away from it.
+    var fillsSheet: Bool {
+        switch self {
+        case .dashboard, .logs: return true
+        case .summary, .events, .metrics, .backups, .shell, .updates: return false
         }
     }
 }
@@ -48,9 +60,10 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
 struct MachineDetailView: View {
     @ObservedObject var model: FleetModel
     @ObservedObject var commands: ControlCenterCommands
-    /// Owned by the window's root view: the dashboard's page state must survive this
-    /// view, which `.id(machine.name)` recreates on every machine switch.
+    /// Owned by the window's root view: the dashboard's page state and the log sessions
+    /// must survive this view, which `.id(machine.name)` recreates on every machine switch.
     let webCache: DashboardWebCache
+    let logSessions: LogSessionStore
     let machine: Machine
 
     @State private var tab: MachineTab = .summary
@@ -76,10 +89,8 @@ struct MachineDetailView: View {
                           block: model.block(for: machine.name), severity: severity,
                           activity: model.inFlight[machine.name]?.progressLabel)
             tabBar
-            // The dashboard scrolls inside its own web view: nesting it in the sheet's
-            // ScrollView would collapse its height and fight its wheel events.
-            if tab == .dashboard {
-                DashboardTabView(model: model, cache: webCache, machine: machine)
+            if tab.fillsSheet {
+                fullTab
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 ScrollView {
@@ -179,6 +190,23 @@ struct MachineDetailView: View {
     }
 
     // MARK: - Tabs
+
+    /// The tabs that own their own scrolling. Both keep their state in a store held by the
+    /// window, not here.
+    @ViewBuilder
+    private var fullTab: some View {
+        switch tab {
+        case .logs:
+            LogsTabView(model: model, commands: commands,
+                        session: logSessions.entry(for: machine.name), machine: machine)
+        case .dashboard:
+            DashboardTabView(model: model, cache: webCache, machine: machine)
+        // Every case is named on purpose: a future tab that starts filling the sheet must
+        // fail visibly here rather than silently render the dashboard's web view.
+        case .summary, .events, .metrics, .backups, .shell, .updates:
+            EmptyView()
+        }
+    }
 
     private var tabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {

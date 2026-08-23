@@ -97,3 +97,43 @@ source_spec: `spec-1-4-dashboard-homeport-intégré.md`
 severity: low
 reason: The follow-up-review damping cap (limits.max_followup_reviews = 1) was spent with the story finalized (status: done, verify green) while the review pass still recommended an independent follow-up. The work was committed by bmad-loop run 20260823-185918-2f6f; this entry preserves the lingering recommendation for a deliberate later review.
 status: open
+
+### DW-12: La machine à états des sessions de log côté app (followEnabled, interrupted, activate/deactivate/suspendForWindow/resumeAfterWindow, reset du buffer au changement de mode, arrêt avant retrait dans pru
+origin: spec-deferred ae2059b121ff
+location: App/Sources/LogsTabView.swift
+source_spec: `spec-1-5-logs-centralisés.md`
+severity: medium
+reason: Quatrième story consécutive sous le même parapluie (DW-7, DW-10) : Package.swift ne déclare que HomePortKitTests et App/project.yml une seule target application, donc Tests/ ne peut pas importer App/Sources. Supprimer la boucle `session.stop()` de LogSessionStore.prune, ou le `session.deactivate()` du onDisappear, laisse `swift test` entièrement vert tout en laissant un `ssh journalctl -f` orphelin. Piste : extraire l'état de cycle de vie (active/followEnabled/suspended + compteur d'arrêts) en type HomePortKit, la vue ne gardant que le câblage SwiftUI — la même opération que LogLines.swift a faite pour le buffer et le filtre.
+status: open
+
+### DW-13: Les lignes d'erreur du log-viewer ne sont distinguées que par la couleur, ce qui contredit le plancher d'accessibilité de l'epic.
+origin: spec-deferred 4b3e55c8c570
+location: App/Sources/LogsTabView.swift
+source_spec: `spec-1-5-logs-centralisés.md`
+severity: low
+reason: rebuild() applique Theme.semanticCritical au run et rien d'autre ; l'epic exige que « la couleur ne soit jamais seule porteuse d'état », mais le token log-viewer de DESIGN.md:291 ne prévoit que la teinte, et l'AC de la story la nomme explicitement. Tension réelle entre deux sources, à trancher hors du périmètre de cette story. Le choix d'un seul Text (imposé par la sélection multi-ligne de l'AC) fait aussi de tout le viewer un unique élément VoiceOver sans libellé par ligne.
+status: open
+
+### DW-14: Sur une machine injoignable, l'onglet traverse brièvement l'empty-state « No log lines » avant de basculer sur « Unreachable ».
+origin: spec-deferred 6ea75c1b79a6
+location: App/Sources/LogsTabView.swift
+source_spec: `spec-1-5-logs-centralisés.md`
+severity: low
+reason: runFollow met loading = false dès que startLogFollow retourne, c'est-à-dire dès que le ssh local est lancé et avant tout établissement de connexion ; le verdict n'arrive qu'à la fin du stream. Garder loading vrai jusqu'à la première ligne rouvrirait le spinner infini sur une unité silencieuse : le correctif propre demande une grâce temporisée dans un chemin déjà concurrent, disproportionnée pour un état transitoire dont l'état final est correct.
+status: open
+
+### DW-15: `LogsCmd` code en dur la chaîne « homeport.service » au lieu de lire `RemotePaths.unit`, seule source de vérité du nom d'unité.
+origin: spec-deferred 47cbc1ec5a55
+location: Sources/hpm/Commands.swift:274
+source_spec: `spec-1-5-logs-centralisés.md`
+severity: low
+reason: Pré-existant : `LogsCmd` n'est pas touché par cette story (AC 4 est une contrainte de préservation). Mais le kit expose désormais deux chemins qui, eux, lisent `RemotePaths.unit` (`logs`, `followLogs`), tandis que la branche `-f` du CLI interpole sa propre chaîne. Renommer l'unité côté déploiement laisserait `hpm logs -f` cibler silencieusement une unité inexistante, et aucun test n'exécute la couche CLI (DW-1, DW-6). Correctif d'une ligne, mais il touche le CLI : hors périmètre d'une story dont l'AC 4 exige que `Sources/hpm/Commands.swift` ne soit pas modifié.
+status: open
+
+### DW-16: Follow-up review still recommended for 1-5-logs-centralisés after the damping cap was spent
+origin: review-budget-followup
+location: n/a
+source_spec: `spec-1-5-logs-centralisés.md`
+severity: low
+reason: The follow-up-review damping cap (limits.max_followup_reviews = 1) was spent with the story finalized (status: done, verify green) while the review pass still recommended an independent follow-up. The work was committed by bmad-loop run 20260823-185918-2f6f; this entry preserves the lingering recommendation for a deliberate later review.
+status: open

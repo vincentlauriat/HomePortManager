@@ -41,7 +41,7 @@ development_status:
   1-2-journal-des-tâches-et-socle-hpm-db: done
   1-3-actions-machine-avec-confirmations: done
   1-4-dashboard-homeport-intégré: done
-  1-5-logs-centralisés: backlog
+  1-5-logs-centralisés: done
   epic-1-retrospective: optional
 
   epic-2: backlog

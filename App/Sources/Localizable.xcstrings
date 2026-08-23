@@ -369,29 +369,6 @@
         }
       }
     },
-    "Centralized logs, continuous follow and text filter arrive with story 1.5.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Centralized logs, continuous follow and text filter arrive with story 1.5."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les logs centralisés, le suivi continu et le filtre texte arrivent avec la story 1.5."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "集中日志、持续跟随与文本筛选将随 story 1.5 提供。"
-          }
-        }
-      }
-    },
     "Clear the filter": {
       "extractionState": "manual",
       "localizations": {
@@ -900,6 +877,52 @@
         }
       }
     },
+    "Filter log lines": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter log lines"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtrer les lignes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选日志行"
+          }
+        }
+      }
+    },
+    "Filter log lines (⌘F)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter log lines (⌘F)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtrer les lignes du journal (⌘F)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选日志行（⌘F）"
+          }
+        }
+      }
+    },
     "Filter machines by name": {
       "extractionState": "manual",
       "localizations": {
@@ -965,6 +988,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "机群"
+          }
+        }
+      }
+    },
+    "Follow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suivre"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随"
+          }
+        }
+      }
+    },
+    "Follow the log continuously": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow the log continuously"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suivre le journal en continu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "持续跟随日志"
           }
         }
       }
@@ -1268,6 +1337,29 @@
         }
       }
     },
+    "Log follow stopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log follow stopped"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suivi interrompu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随已中断"
+          }
+        }
+      }
+    },
     "Logs": {
       "extractionState": "manual",
       "localizations": {
@@ -1471,6 +1563,75 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有仪表盘地址"
+          }
+        }
+      }
+    },
+    "No line matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No line matches"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune ligne ne correspond"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的行"
+          }
+        }
+      }
+    },
+    "No line of this log matches the filter.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No line of this log matches the filter."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune ligne de ce journal ne correspond au filtre."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此日志中没有与筛选条件匹配的行。"
+          }
+        }
+      }
+    },
+    "No log lines": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No log lines"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune ligne"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无日志"
           }
         }
       }
@@ -1821,6 +1982,29 @@
         }
       }
     },
+    "Reload the last lines": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reload the last lines"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recharger les dernières lignes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新加载最新行"
+          }
+        }
+      }
+    },
     "Remove": {
       "extractionState": "manual",
       "localizations": {
@@ -2116,6 +2300,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "恢复进行中…"
+          }
+        }
+      }
+    },
+    "Resume follow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume follow"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre le suivi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复跟随"
           }
         }
       }
@@ -2553,6 +2760,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近的本地备份将替换 %@ 当前的配置和数据。"
+          }
+        }
+      }
+    },
+    "The service journal of %@ has nothing to show yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The service journal of %@ has nothing to show yet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le journal du service de %@ n’a encore rien à afficher."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的服务日志暂无内容。"
           }
         }
       }

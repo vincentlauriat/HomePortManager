@@ -12,6 +12,19 @@ extension HomeportManager {
         return result.stdout
     }
 
+    /// The same journal, followed instead of sampled: `journalctl -n N -f` serves the last N
+    /// lines and then keeps going, so one command fills the history *and* the follow. Running
+    /// a one-shot first and a follow after would deliver those N lines twice.
+    ///
+    /// Reading a journal is a read: no lock, no journal entry of its own.
+    public func followLogs(on machine: Machine, lines: Int = LogDefaults.tail) throws -> ProcessOutputStream {
+        // A zero or negative tail is not something journalctl accepts: it would refuse the
+        // argument and the follow would never start.
+        try ssh.stream(on: machine.ssh,
+                       "journalctl -u \(RemotePaths.unit) -n \(max(1, lines)) -f --no-pager",
+                       sudo: true)
+    }
+
     /// Restart the service, then verify healthz.
     public func restart(on machine: Machine) throws {
         try journaled("restart", on: machine, locking: true) {

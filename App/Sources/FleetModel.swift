@@ -395,4 +395,26 @@ final class FleetModel: ObservableObject {
             catch { return String(localized: "Unable to fetch logs: \(String(describing: error))") }
         }.value
     }
+
+    // MARK: - Logs tab (FR4)
+
+    /// The two log reads of the Logs tab, going through the same manager factory as every
+    /// other remote call — the app builds no second `SSHClient` of its own. Unlike
+    /// `fetchLogs`, which the menu bar's Logs window renders as text whatever happens, these
+    /// two throw: the tab needs the verdict to choose its empty state.
+    ///
+    /// Reads, both of them: no lock is taken and nothing is journaled.
+    func startLogFollow(for machine: Machine, lines: Int = LogDefaults.tail) async throws -> ProcessOutputStream {
+        let factory = makeManager
+        return try await Task.detached {
+            try factory { _ in }.followLogs(on: machine, lines: lines)
+        }.value
+    }
+
+    func logSnapshot(for machine: Machine, lines: Int = LogDefaults.tail) async throws -> String {
+        let factory = makeManager
+        return try await Task.detached {
+            try factory { _ in }.logs(on: machine, lines: lines)
+        }.value
+    }
 }
