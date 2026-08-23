@@ -31,3 +31,5 @@ App/build/
 .agent/
 .agents/
 .claude/skills/
+.bmad-loop/policy.toml
+_bmad/render/
