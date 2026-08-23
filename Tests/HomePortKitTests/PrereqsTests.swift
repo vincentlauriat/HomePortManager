@@ -1,11 +1,13 @@
 import XCTest
 @testable import HomePortKit
 
-/// Shared helper to build a HomeportManager wired to mocks.
+/// Shared helper to build a HomeportManager wired to mocks. `historyPath` is nil by
+/// default: most suites don't care about the journal and must not create a database.
 func makeTestManager(mock: MockProcessRunner,
                      backupRoot: String = NSTemporaryDirectory() + "hpm-backups-\(UUID().uuidString)",
                      cacheDir: String = NSTemporaryDirectory() + "hpm-cache-\(UUID().uuidString)",
                      configRoot: String = NSTemporaryDirectory() + "hpm-configs-\(UUID().uuidString)",
+                     historyPath: String? = nil,
                      report: @escaping Reporter = { _ in }) -> HomeportManager {
     HomeportManager(
         ssh: SSHClient(runner: mock),
@@ -13,6 +15,7 @@ func makeTestManager(mock: MockProcessRunner,
         backupRoot: backupRoot,
         configRoot: configRoot,
         runner: mock,
+        history: historyPath.flatMap { try? HistoryStore(path: $0) },
         report: report
     )
 }

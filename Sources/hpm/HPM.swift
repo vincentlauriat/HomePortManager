@@ -11,18 +11,31 @@ struct HPM: ParsableCommand {
             MachineCmd.self, StatusCmd.self, ReleasesCmd.self, PrereqsCmd.self,
             InstallCmd.self, UpdateCmd.self, BackupCmd.self, RestoreCmd.self,
             ConfigCmd.self, RemoveCmd.self, LogsCmd.self, RestartCmd.self, DoctorCmd.self,
+            TasksCmd.self,
         ]
     )
 }
 
 // MARK: - Shared helpers
 
-func makeManager(report: @escaping Reporter = { print("  \($0)") }) -> HomeportManager {
+func makeManager(journal: Bool = true, report: @escaping Reporter = { print("  \($0)") }) -> HomeportManager {
     let runner = DefaultProcessRunner()
+    // A broken state directory degrades the journal, never the action itself. Pure
+    // reads pass `journal: false` and skip the store entirely: opening it would create
+    // hpm.db, and only the first *action* may bring the database into existence.
+    var history: HistoryStore?
+    if journal {
+        do {
+            history = try HistoryStore()
+        } catch {
+            FileHandle.standardError.write(Data("warning: task journal unavailable — \(error)\n".utf8))
+        }
+    }
     return HomeportManager(
         ssh: SSHClient(runner: runner),
         releases: ReleaseService(runner: runner),
         runner: runner,
+        history: history,
         report: report
     )
 }

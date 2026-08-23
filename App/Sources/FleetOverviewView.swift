@@ -15,25 +15,40 @@ struct FleetOverviewView: View {
     private var rows: [FleetRow] { model.rows(matching: filter) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-            header
-            if model.machines.isEmpty {
-                noFleet
-            } else if rows.isEmpty {
-                noMatch
-            } else {
-                DataTable(columns: columns, rows: rows,
-                          onSelect: { select($0.name) },
-                          rowLabel: Self.announcement)
+        // The history section can outgrow the window, and this view had no ScrollView
+        // before it existed — the whole content scrolls now.
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                header
+                if model.machines.isEmpty {
+                    noFleet
+                } else if rows.isEmpty {
+                    noMatch
+                } else {
+                    DataTable(columns: columns, rows: rows,
+                              onSelect: { select($0.name) },
+                              rowLabel: Self.announcement)
+                }
+                // No journal noise under onboarding: with no machine declared and no
+                // task ever recorded, the section would only crowd the guidance above.
+                // An unavailable journal still shows — hiding it here would bury the
+                // only visible warning that hpm.db could not be opened.
+                if !model.historyAvailable || !(model.machines.isEmpty && model.tasks.isEmpty) {
+                    history
+                }
             }
-            Spacer(minLength: 0)
         }
         .padding(Theme.Spacing.lg)
         .onChange(of: commands.signal) { signal in
             if signal?.command == .focusFilter { filterFocused = true }
         }
-        // ⌘F means something only while this view is the one on screen.
-        .onAppear { commands.handling(.focusFilter, true) }
+        // ⌘F means something only while this view is the one on screen. The journal can
+        // advance from the CLI while this window is closed, so it reloads on appearance
+        // instead of waiting for the periodic refresh.
+        .onAppear {
+            commands.handling(.focusFilter, true)
+            model.reloadTasks()
+        }
         .onDisappear { commands.handling(.focusFilter, false) }
     }
 
@@ -140,6 +155,47 @@ struct FleetOverviewView: View {
         return text
     }
 
+    // MARK: - History
+
+    /// The global journal (FR6): every action initiated from this Mac, app or CLI,
+    /// newest first. ~50 lines; the full output of an entry lives in `hpm tasks --id`.
+    private var historyRows: [HistoryStore.TaskEntry] { Array(model.tasks.prefix(50)) }
+
+    private var history: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text("History")
+                .styled(Theme.sectionTitle)
+                .foregroundStyle(Theme.ink)
+            if !model.historyAvailable {
+                TaskJournalUnavailableView()
+            } else if historyRows.isEmpty {
+                EmptyStateView(
+                    title: "No tasks yet",
+                    message: "Every action started from this Mac — from the app or from the hpm command line — is recorded here once it runs.")
+            } else {
+                DataTable(columns: historyColumns, rows: historyRows,
+                          rowLabel: { taskAnnouncement($0, includeMachine: true) })
+            }
+        }
+    }
+
+    private var historyColumns: [DataColumn<HistoryStore.TaskEntry>] {
+        [
+            DataColumn("Date", width: 180) { entry in
+                TaskDateText(date: entry.startedAt)
+            },
+            DataColumn("Machine") { entry in
+                value(entry.machine)
+            },
+            DataColumn("Action", width: 110) { entry in
+                value(entry.action)
+            },
+            DataColumn("Status", width: 90) { entry in
+                TaskStatusPill(status: entry.status)
+            },
+        ]
+    }
+
     // MARK: - Empty states
 
     private var noFleet: some View {
@@ -168,5 +224,88 @@ struct FleetOverviewView: View {
             message: "Clear the filter to see the whole fleet again.",
             actionTitle: "Clear the filter",
             action: { filter = "" })
+    }
+}
+
+// MARK: - Task journal cells (shared with MachineDetailView)
+
+/// The localized name of a task status — the pill's label and the VoiceOver
+/// announcements speak with the same words.
+func taskStatusLabel(_ status: HistoryStore.TaskStatus) -> LocalizedStringKey {
+    switch status {
+    case .running: return "Running"
+    case .success: return "Success"
+    case .failure: return "Failure"
+    case .interrupted: return "Interrupted"
+    }
+}
+
+/// One VoiceOver announcement per journal line: the action first, then (in the global
+/// history) the machine, then the localized status, then the timestamp. The timestamp is
+/// spoken as a formatted date: raw ISO 8601 is machine content *on screen*, but an
+/// announcement is speech, and "2026-08-23T10:40:00Z" read letter by letter helps no one.
+func taskAnnouncement(_ entry: HistoryStore.TaskEntry, includeMachine: Bool) -> Text {
+    var text = Text(verbatim: entry.action)
+    if includeMachine {
+        text = text + Text(verbatim: ". ") + Text(verbatim: entry.machine)
+    }
+    return text
+        + Text(verbatim: ". ") + Text(taskStatusLabel(entry.status))
+        + Text(verbatim: ". ")
+        + Text(entry.startedAt, format: .dateTime.year().month().day().hour().minute())
+}
+
+/// A task status is an app concept: localized label, semantic colour — and always both,
+/// so the state survives without the colour. `interrupted` is written by story 1.3 only,
+/// but the journal can already contain it once 1.3 ships, so it renders.
+struct TaskStatusPill: View {
+    let status: HistoryStore.TaskStatus
+
+    private var label: LocalizedStringKey { taskStatusLabel(status) }
+
+    private var severity: FleetRow.Severity {
+        switch status {
+        case .success: return .ok
+        case .failure: return .critical
+        case .running, .interrupted: return .warning
+        }
+    }
+
+    var body: some View {
+        Text(label)
+            .styled(Theme.eyebrow)
+            .foregroundStyle(Theme.color(of: severity))
+            .padding(.vertical, 2)
+            .padding(.horizontal, 10)
+            .background(Theme.canvas, in: RoundedRectangle(cornerRadius: Theme.Rounded.pill))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Rounded.pill)
+                    .stroke(Theme.color(of: severity).opacity(0.25), lineWidth: 1))
+            .accessibilityElement()
+            .accessibilityLabel(Text(label))
+    }
+}
+
+/// The truthful empty state when `hpm.db` could not be opened: not "no tasks yet" —
+/// actions still run, they just leave no receipt. The state path is machine content.
+struct TaskJournalUnavailableView: View {
+    var body: some View {
+        EmptyStateView(
+            title: "Task journal unavailable",
+            message: "The task journal could not be opened — actions still run normally, they just leave no trace here. Check the file below, then relaunch the app.",
+            detail: expandPath(HistoryStore.defaultPath))
+    }
+}
+
+/// A journal timestamp is machine content: the ISO 8601 UTC string as stored, mono,
+/// never translated.
+struct TaskDateText: View {
+    let date: Date
+
+    var body: some View {
+        Text(verbatim: HistoryStore.iso8601String(from: date))
+            .styled(Theme.data)
+            .foregroundStyle(Theme.ink)
+            .lineLimit(1)
     }
 }

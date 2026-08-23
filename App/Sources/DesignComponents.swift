@@ -319,6 +319,12 @@ struct DataTable<Row: Identifiable>: View {
             } else {
                 button
             }
+        } else if let rowLabel {
+            // A non-selectable row still announces as one element when it has a label,
+            // instead of a handful of loose cells.
+            cells(row)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(rowLabel(row))
         } else {
             cells(row)
         }

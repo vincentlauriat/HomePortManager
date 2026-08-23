@@ -31,6 +31,10 @@ extension HomeportManager {
     /// Returns the local filenames.
     @discardableResult
     public func configPull(from machine: Machine) throws -> [String] {
+        try journaled("config-pull", on: machine) { try performConfigPull(from: machine) }
+    }
+
+    private func performConfigPull(from machine: Machine) throws -> [String] {
         let dir = configDir(for: machine.name)
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         report("Pulling \(RemotePaths.config)/* from \(machine.name)…")
@@ -71,6 +75,10 @@ extension HomeportManager {
     /// Pushes local config file(s) into /etc/homeport. No service restart — Homeport
     /// hot-reloads its configuration.
     public func configPush(to machine: Machine, file: String?) throws {
+        try journaled("config-push", on: machine) { try performConfigPush(to: machine, file: file) }
+    }
+
+    private func performConfigPush(to machine: Machine, file: String?) throws {
         let files = try localConfigFiles(for: machine, file: file)
         let stagingDir = "/tmp/hpm-cfg"
         try ssh.run(on: machine.ssh, "mkdir -p \(stagingDir)")

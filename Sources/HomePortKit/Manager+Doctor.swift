@@ -5,6 +5,10 @@ extension HomeportManager {
     /// coherence, data-dir disk usage, local config drift. Returns ✓/✗ checks;
     /// the CLI decides the exit code.
     public func doctor(on machine: Machine) throws -> [PrereqCheck] {
+        try journaled("doctor", on: machine) { try performDoctor(on: machine) }
+    }
+
+    private func performDoctor(on machine: Machine) throws -> [PrereqCheck] {
         var checks = try prereqs(on: machine, fix: false)
         let status = try status(of: machine)
 

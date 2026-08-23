@@ -83,8 +83,12 @@ struct MachineDetailView: View {
             tab = requested
         }
         // ⌘1…⌘8 only exist while a machine sheet is showing; on the fleet view they must
-        // travel back up the responder chain rather than be swallowed.
-        .onAppear { commands.handling(.selectTab, true) }
+        // travel back up the responder chain rather than be swallowed. The journal can
+        // advance from the CLI while no window shows, so it reloads on appearance too.
+        .onAppear {
+            commands.handling(.selectTab, true)
+            model.reloadTasks()
+        }
         .onDisappear { commands.handling(.selectTab, false) }
     }
 
@@ -141,7 +145,51 @@ struct MachineDetailView: View {
                     }
                 }
             }
+            recentTasks
         }
+    }
+
+    // MARK: - Recent tasks
+
+    /// The last ~10 journal entries for this machine (FR6). The journal is filtered on
+    /// the inventory name — its exact identifier everywhere.
+    private var machineTasks: [HistoryStore.TaskEntry] {
+        Array(model.tasks.lazy.filter { $0.machine == machine.name }.prefix(10))
+    }
+
+    private var recentTasks: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text("Recent tasks")
+                .styled(Theme.sectionTitle)
+                .foregroundStyle(Theme.ink)
+            if !model.historyAvailable {
+                TaskJournalUnavailableView()
+            } else if machineTasks.isEmpty {
+                EmptyStateView(
+                    title: "No tasks yet",
+                    message: "Actions run on this machine from this Mac — app or command line — will appear here.")
+            } else {
+                DataTable(columns: taskColumns, rows: machineTasks,
+                          rowLabel: { taskAnnouncement($0, includeMachine: false) })
+            }
+        }
+    }
+
+    private var taskColumns: [DataColumn<HistoryStore.TaskEntry>] {
+        [
+            DataColumn("Date", width: 180) { entry in
+                TaskDateText(date: entry.startedAt)
+            },
+            DataColumn("Action") { entry in
+                Text(verbatim: entry.action)
+                    .styled(Theme.data)
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+            },
+            DataColumn("Status", width: 90) { entry in
+                TaskStatusPill(status: entry.status)
+            },
+        ]
     }
 
     /// The unreachable case is guiding, never an error page: the sheet keeps the last known

@@ -61,14 +61,14 @@ struct StatusCmd: ParsableCommand {
 
     func run() throws {
         let targets = try resolveTargets(machine: machine, all: all || machine == nil)
-        let manager = makeManager()
+        let manager = makeManager(journal: false)
         let latest = (try? manager.releases.latest().tag) ?? "?"
 
         // Query machines concurrently; each status is one ssh round-trip.
         var statuses = [String: MachineStatus]()
         let lock = NSLock()
         DispatchQueue.concurrentPerform(iterations: targets.count) { i in
-            let status = try? makeManager { _ in }.status(of: targets[i])
+            let status = try? makeManager(journal: false) { _ in }.status(of: targets[i])
             lock.lock(); statuses[targets[i].name] = status; lock.unlock()
         }
 
@@ -89,12 +89,14 @@ struct StatusCmd: ParsableCommand {
         }
         printTable(rows)
     }
+}
 
-    private func printTable(_ rows: [[String]]) {
-        let widths = (0..<rows[0].count).map { col in rows.map { $0[col].count }.max() ?? 0 }
-        for row in rows {
-            print(zip(row, widths).map { $0.padding(toLength: $1 + 2, withPad: " ", startingAt: 0) }.joined())
-        }
+/// Column-aligned plain-text table, shared by status and tasks.
+func printTable(_ rows: [[String]]) {
+    guard let header = rows.first else { return }
+    let widths = (0..<header.count).map { col in rows.map { $0[col].count }.max() ?? 0 }
+    for row in rows {
+        print(zip(row, widths).map { $0.padding(toLength: $1 + 2, withPad: " ", startingAt: 0) }.joined())
     }
 }
 
@@ -103,7 +105,7 @@ struct StatusCmd: ParsableCommand {
 struct ReleasesCmd: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "releases", abstract: "List available Homeport releases on GitHub.")
     func run() throws {
-        for release in try makeManager().releases.list() {
+        for release in try makeManager(journal: false).releases.list() {
             let date = release.publishedAt.map { "  (\($0))" } ?? ""
             print("\(release.tag)\(date)")
         }
@@ -219,7 +221,7 @@ struct ConfigCmd: ParsableCommand {
         @Argument(help: "One file (default: every pulled file).") var file: String?
         func run() throws {
             let target = try FleetStore().machine(named: machine)
-            let diff = try makeManager().configDiff(on: target, file: file)
+            let diff = try makeManager(journal: false).configDiff(on: target, file: file)
             print(diff.isEmpty ? "No differences." : diff)
         }
     }
@@ -266,7 +268,7 @@ struct LogsCmd: ParsableCommand {
             try process.run()
             process.waitUntilExit()
         } else {
-            print(try makeManager().logs(on: target, lines: lines), terminator: "")
+            print(try makeManager(journal: false).logs(on: target, lines: lines), terminator: "")
         }
     }
 }
@@ -292,6 +294,74 @@ struct DoctorCmd: ParsableCommand {
             print("\(check.ok ? "✓" : "✗") \(check.name)\(check.ok ? "" : " — \(check.detail)")")
         }
         if checks.contains(where: { !$0.ok }) { throw ExitCode(1) }
+    }
+}
+
+// MARK: - tasks
+
+struct TasksCmd: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "tasks", abstract: "Show the journal of actions run from this Mac.")
+    @Option(name: [.customShort("m"), .customLong("machine")], help: "Only this machine's tasks.") var machine: String?
+    @Option(name: [.customShort("n"), .customLong("limit")], help: "Number of entries (default: 50).") var limit: Int?
+    @Option(help: "Show one entry in full, with its captured output.") var id: Int64?
+
+    /// Read-only by design: `hpm tasks` never purges (the app does, at startup). Unlike
+    /// the write path, an unreadable journal is a real error here and propagates.
+    func run() throws {
+        if id != nil, machine != nil {
+            throw HPMError("--id shows one entry in full; it cannot be combined with --machine")
+        }
+        if id != nil, limit != nil {
+            throw HPMError("--id shows one entry in full; it cannot be combined with --limit")
+        }
+        let limit = self.limit ?? 50
+        guard (1...HistoryStore.retentionCap).contains(limit) else {
+            throw HPMError("--limit must be between 1 and \(HistoryStore.retentionCap) (the journal never holds more)")
+        }
+        // A listing must not bring the database into existence: the first *action*
+        // creates hpm.db, never a read on a virgin machine.
+        guard FileManager.default.fileExists(atPath: expandPath(HistoryStore.defaultPath)) else {
+            // A missing base and a missing row are the same lookup failure for --id:
+            // both must exit non-zero, not pass an absence off as a quiet success.
+            if let id {
+                throw HPMError("no task with id \(id) — list them with: hpm tasks")
+            }
+            print(machine.map { "No tasks recorded for '\($0)'." } ?? "No tasks recorded yet.")
+            return
+        }
+        let store = try HistoryStore()
+        if let id {
+            guard let entry = try store.task(id: id) else {
+                throw HPMError("no task with id \(id) — list them with: hpm tasks")
+            }
+            print("ID:       \(entry.id)")
+            print("Date:     \(HistoryStore.iso8601String(from: entry.startedAt))")
+            print("Finished: \(entry.finishedAt.map(HistoryStore.iso8601String(from:)) ?? "-")")
+            print("Machine:  \(entry.machine)")
+            print("Action:   \(entry.action)")
+            print("Status:   \(entry.status.rawValue)")
+            print("Output:")
+            print(entry.output.isEmpty ? "  (empty)" : entry.output.split(separator: "\n", omittingEmptySubsequences: false).map { "  \($0)" }.joined(separator: "\n"))
+            return
+        }
+
+        // The table never renders outputs; skip the column like the app's list read does.
+        let entries = try store.tasks(machine: machine, limit: limit, includeOutput: false)
+        guard !entries.isEmpty else {
+            print(machine.map { "No tasks recorded for '\($0)'." } ?? "No tasks recorded yet.")
+            return
+        }
+        var rows: [[String]] = [["ID", "DATE", "MACHINE", "ACTION", "STATUS"]]
+        for entry in entries {
+            rows.append([
+                String(entry.id),
+                HistoryStore.iso8601String(from: entry.startedAt),
+                entry.machine,
+                entry.action,
+                entry.status.rawValue,
+            ])
+        }
+        printTable(rows)
     }
 }
 

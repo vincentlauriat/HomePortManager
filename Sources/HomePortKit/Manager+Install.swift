@@ -5,6 +5,10 @@ extension HomeportManager {
     /// pushes it; the machine never contacts GitHub. Homeport's own install.sh does the
     /// heavy lifting and is idempotent.
     public func install(on machine: Machine, version: String?) throws {
+        try journaled("install", on: machine) { try performInstall(on: machine, version: version) }
+    }
+
+    private func performInstall(on machine: Machine, version: String?) throws {
         let tag = try version ?? releases.latest().tag
         report("Installing Homeport \(tag) on \(machine.name)…")
 
@@ -34,11 +38,14 @@ extension HomeportManager {
         report("Homeport \(tag) is up on \(machine.name).")
     }
 
-    /// Update = automatic backup, then the same idempotent install pipeline.
+    /// Update = automatic backup, then the same idempotent install pipeline. One journal
+    /// entry only: the nested backup and install see the depth guard and stay silent.
     public func update(on machine: Machine, version: String?) throws {
-        report("Backing up \(machine.name) before update…")
-        try backup(on: machine)
-        try install(on: machine, version: version)
+        try journaled("update", on: machine) {
+            report("Backing up \(machine.name) before update…")
+            try backup(on: machine)
+            try install(on: machine, version: version)
+        }
     }
 
     /// healthz always checked from the machine itself (works regardless of how the

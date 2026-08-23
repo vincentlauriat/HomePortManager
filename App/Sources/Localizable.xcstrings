@@ -47,6 +47,52 @@
         }
       }
     },
+    "Action": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作"
+          }
+        }
+      }
+    },
+    "Actions run on this machine from this Mac — app or command line — will appear here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actions run on this machine from this Mac — app or command line — will appear here."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les actions menées sur cette machine depuis ce Mac — app ou ligne de commande — apparaîtront ici."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这台 Mac 对该机器执行的操作（应用或命令行）将显示在此。"
+          }
+        }
+      }
+    },
     "Backup": {
       "extractionState": "manual",
       "localizations": {
@@ -300,6 +346,29 @@
         }
       }
     },
+    "Date": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日期"
+          }
+        }
+      }
+    },
     "Disk": {
       "extractionState": "manual",
       "localizations": {
@@ -388,6 +457,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "事件"
+          }
+        }
+      }
+    },
+    "Every action started from this Mac — from the app or from the hpm command line — is recorded here once it runs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every action started from this Mac — from the app or from the hpm command line — is recorded here once it runs."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque action lancée depuis ce Mac — depuis l'app ou la ligne de commande hpm — est consignée ici dès qu'elle s'exécute."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这台 Mac 发起的每个操作——无论来自应用还是 hpm 命令行——都会在执行后记录在此。"
+          }
+        }
+      }
+    },
+    "Failure": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failure"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败"
           }
         }
       }
@@ -576,6 +691,29 @@
         }
       }
     },
+    "History": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Historique"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "历史记录"
+          }
+        }
+      }
+    },
     "HomePort fleet": {
       "extractionState": "manual",
       "localizations": {
@@ -595,6 +733,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "HomePort 机群"
+          }
+        }
+      }
+    },
+    "Interrupted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupted"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrompue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已中断"
           }
         }
       }
@@ -944,6 +1105,29 @@
         }
       }
     },
+    "No tasks yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No tasks yet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune tâche pour l'instant"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无任务"
+          }
+        }
+      }
+    },
     "Not polled yet": {
       "extractionState": "manual",
       "localizations": {
@@ -1033,6 +1217,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出"
+          }
+        }
+      }
+    },
+    "Recent tasks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent tasks"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tâches récentes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近任务"
           }
         }
       }
@@ -1244,6 +1451,29 @@
         }
       }
     },
+    "Running": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En cours"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进行中"
+          }
+        }
+      }
+    },
     "SSH latency": {
       "extractionState": "manual",
       "localizations": {
@@ -1428,6 +1658,29 @@
         }
       }
     },
+    "Success": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Success"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Succès"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "成功"
+          }
+        }
+      }
+    },
     "Summary": {
       "extractionState": "manual",
       "localizations": {
@@ -1447,6 +1700,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "概览"
+          }
+        }
+      }
+    },
+    "Task journal unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task journal unavailable"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Journal des tâches indisponible"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务日志不可用"
           }
         }
       }
@@ -1539,6 +1815,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "该机器的 Homeport 仪表盘将由 story 1.4 嵌入此处。"
+          }
+        }
+      }
+    },
+    "The task journal could not be opened — actions still run normally, they just leave no trace here. Check the file below, then relaunch the app.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The task journal could not be opened — actions still run normally, they just leave no trace here. Check the file below, then relaunch the app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le journal des tâches n'a pas pu être ouvert — les actions s'exécutent normalement, elles ne laissent simplement aucune trace ici. Vérifiez le fichier ci-dessous, puis relancez l'application."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开任务日志——操作仍会正常执行，只是不会在此留下任何记录。请检查下方文件，然后重新启动应用程序。"
           }
         }
       }

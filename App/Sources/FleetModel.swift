@@ -20,10 +20,19 @@ final class FleetModel: ObservableObject {
     @Published var lastSeenAt: [String: Date] = [:]
     /// Stable pastel identity per machine, assigned once and persisted.
     @Published var blocks: [String: MachineBlock] = [:]
+    /// The task journal, newest first — Summary and Fleet render slices of this one list.
+    @Published var tasks: [HistoryStore.TaskEntry] = []
 
     private let blockStore = MachineBlockStore()
     private var timer: Timer?
     private let makeManager: (@escaping Reporter) -> HomeportManager
+    /// One shared store for the whole app: the model reads it, the managers built by the
+    /// factory journal through it. nil when the state directory is unusable — the journal
+    /// degrades, actions still run.
+    private let history: HistoryStore?
+    /// False when hpm.db could not be opened: the journal sections say so instead of
+    /// pretending "no tasks yet" (the stderr warning is invisible for a menubar app).
+    var historyAvailable: Bool { history != nil }
 
     /// `map`, not `compactMap`: a declared machine with no status yet has to reach
     /// `aggregate` as a `nil` so the icon counts it. Filtering it out is what let the menu
@@ -33,13 +42,36 @@ final class FleetModel: ObservableObject {
     }
 
     init(makeManager: ((@escaping Reporter) -> HomeportManager)? = nil) {
+        let history: HistoryStore?
+        do {
+            history = try HistoryStore()
+        } catch {
+            FileHandle.standardError.write(Data("warning: task journal unavailable — \(error)\n".utf8))
+            history = nil
+        }
+        self.history = history
         self.makeManager = makeManager ?? { report in
             let runner = DefaultProcessRunner()
             return HomeportManager(ssh: SSHClient(runner: runner),
                                    releases: ReleaseService(runner: runner),
-                                   runner: runner, report: report)
+                                   runner: runner, history: history, report: report)
         }
         Notifier.requestPermission()
+        // This init is *the* app startup hook (no AppDelegate; the MenuBarExtra's
+        // `.onAppear` only fires when the menu opens), so retention runs here — the app
+        // alone purges, the CLI never does. Off the MainActor: SQLite work is blocking.
+        if let history {
+            Task.detached { [weak self] in
+                do {
+                    _ = try history.purge()
+                } catch {
+                    // The app is the only purge site (NFR7): a failure must leave a
+                    // trace somewhere, or retention silently stops being enforced.
+                    FileHandle.standardError.write(Data("warning: task journal purge failed — \(error)\n".utf8))
+                }
+                await self?.reloadTasks()
+            }
+        }
         reloadFleet()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
@@ -91,10 +123,47 @@ final class FleetModel: ObservableObject {
 
     func block(for name: String) -> MachineBlock { blocks[name] ?? .lime }
 
+    /// Monotonic guard against out-of-order publication: an action-completion reload
+    /// racing the periodic refresh's must never let the older snapshot land last.
+    /// MainActor-confined, like every caller of `reloadTasks`.
+    private var reloadGeneration = 0
+
+    /// Reads are free and parallel; the blocking SQLite call still stays off the
+    /// MainActor. The limit is the retention cap: the base never holds more, and any
+    /// smaller slice could starve a quiet machine's "Recent tasks" (that view filters
+    /// this list client-side). Outputs stay in the base — no list surface renders them.
+    /// A failed read keeps the previous list — publishing an empty one on a transient
+    /// SQLITE_BUSY would wipe the journal off the screen.
+    func reloadTasks() {
+        guard let history else { return }
+        reloadGeneration += 1
+        let generation = reloadGeneration
+        Task.detached {
+            let entries: [HistoryStore.TaskEntry]
+            do {
+                entries = try history.tasks(limit: HistoryStore.retentionCap,
+                                            includeOutput: false)
+            } catch {
+                // Keeping the previous list is right for a transient SQLITE_BUSY, but a
+                // persistent failure (corrupt row) must not stay invisible — same trace
+                // channel as the purge and journal-write failures.
+                FileHandle.standardError.write(Data("warning: task journal read failed — \(error)\n".utf8))
+                return
+            }
+            await MainActor.run { [weak self] in
+                guard let self, generation == self.reloadGeneration else { return }
+                // Most 5-minute ticks change nothing: skip the publication (and the
+                // SwiftUI re-diff of both journal tables) when the snapshot is identical.
+                if entries != self.tasks { self.tasks = entries }
+            }
+        }
+    }
+
     func refresh() {
         guard !refreshing else { return }
         refreshing = true
         reloadFleet()
+        reloadTasks()
         let targets = machines
         let factory = makeManager
         Task.detached {
@@ -167,6 +236,10 @@ final class FleetModel: ObservableObject {
                     Notifier.notify(title: machine.name,
                                     body: String(localized: "\(action.title) finished"))
                 }
+                // Not left to refresh() alone: its `guard !refreshing` can swallow the
+                // reload when the periodic refresh is in flight, and the just-closed
+                // task would only appear at the next cycle.
+                self.reloadTasks()
                 self.refresh()
             }
         }
