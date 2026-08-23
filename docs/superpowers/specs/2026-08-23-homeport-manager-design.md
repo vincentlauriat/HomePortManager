@@ -1,7 +1,8 @@
 # HomePortManager — Design Specification
 
 **Date:** 2026-08-23
-**Status:** Approved by Vincent (brainstorming session)
+**Status:** Approved by Vincent (brainstorming session) — **v1 IMPLEMENTED and validated in
+production on raspcorse + raspyellow (2026-08-23)**. See "Implementation deltas" at the end.
 **Scope:** v1 — CLI + core library. The macOS app is v2 and out of scope here.
 
 ## Purpose
@@ -114,5 +115,23 @@ No secrets in this file — authentication is SSH's job. Managed with
 
 ## Known constraint
 
-Installing from GitHub releases means only tagged versions are deployable. v0.4.0 exists;
-the unreleased Livebox module will be deployable once Homeport tags v0.5.0.
+Installing from GitHub releases means only tagged versions are deployable. (v0.5.0, tagged
+2026-08-22, covered the previously unreleased Livebox module — constraint moot in practice.)
+
+## Implementation deltas (learned during real-world validation, 2026-08-23)
+
+The v1 implementation follows this spec, with four corrections the real machines forced:
+
+1. **Data dir is resolved, not assumed.** A systemd drop-in may override
+   `HOMEPORT_DATA_DIR` (raspcorse keeps data on `/mnt/ssd/homeport-data`;
+   `/var/lib/homeport` is empty there). Backup/restore/remove read the effective value
+   via `systemctl show homeport -p Environment` (last override wins).
+2. **Config pull stages through sudo.** `/etc/homeport/mqtt.env` is root-only (600), so a
+   direct scp fails. Files are copied with sudo to `/tmp/hpm-cfg-pull`, chowned to
+   `$SUDO_USER`, pulled, then the staging is removed.
+3. **Install/update restart the service explicitly.** Homeport's `install.sh` uses
+   `systemctl enable --now`, which does NOT restart an already-running unit — without an
+   explicit restart the old code keeps serving (observed: healthz said 0.4.0 with 0.5.0
+   on disk).
+4. **The inventory's `ssh` field earns its place.** raspyellow's Tailscale SSH policy only
+   accepts user `vincent`, so its inventory entry is `ssh: vincent@raspyellow`.
