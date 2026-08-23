@@ -20,3 +20,7 @@ DerivedData/
 
 # OMC
 .omc/
+
+# Xcode build artifacts (App/)
+App/build/
+*.xcodeproj

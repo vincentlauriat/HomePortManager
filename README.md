@@ -48,6 +48,16 @@ bypasses it for scripting. `--all` runs machines in parallel (output grouped per
 and ends with a per-machine summary. `status` shows uptime, disk usage of the effective
 data dir and SSH latency.
 
+## Menu bar app
+
+`App/` contains **HomePort Manager.app** — a SwiftUI menu bar companion on the same
+`HomePortKit`: fleet health at a glance (icon turns ⚠️ on any problem), per-machine rows
+(version with "→ vX available", uptime, disk, backup age), safe actions (Backup, Restart,
+Update — with confirmation and automatic pre-backup — Logs window), macOS notifications on
+state transitions only, refresh every 5 min. Restore/remove stay CLI-only by design.
+
+Build a signed, notarized DMG: `./Scripts/release.sh <version>` → `release/HomePortManager-<version>.dmg`.
+
 ## Design notes
 
 - One Swift package: `HomePortKit` (all logic, fully unit-tested against a mocked process
