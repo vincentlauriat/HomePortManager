@@ -1,0 +1,63 @@
+- id: "1"
+  title: Fenêtre centre de contrôle + tableau de bord global
+  description: >-
+    La menubar ouvre la fenêtre principale du centre de contrôle ; vue flotte
+    couvrant CAP-1 (santé, version, disque, âge du dernier backup par machine).
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Réutiliser le FleetModel existant de l'app menubar ; ne pas dupliquer la
+    logique de refresh ni les appels HomePortKit.
+- id: "2"
+  title: Fiche machine + actions hpm
+  description: >-
+    Sélection d'une machine et pilotage des actions hpm (update, restart,
+    backup, restore, config, doctor) avec confirmations — CAP-2.
+  done_checkpoint: true
+- id: "3"
+  title: Dashboard Homeport intégré
+  description: >-
+    WebView vers le dashboard web propre du Homeport de la machine
+    sélectionnée — CAP-3.
+- id: "4"
+  title: Logs centralisés
+  description: >-
+    Consultation et suivi continu des logs de n'importe quelle machine,
+    filtres machine/texte, sans SSH manuel — CAP-4.
+- id: "5"
+  title: Journal des tâches
+  description: >-
+    Historisation locale de toutes les actions lancées via le centre
+    (horodatage, machine, action, statut, sortie), consultable — CAP-6.
+- id: "6"
+  title: Événements Homeport
+  description: >-
+    Consommation de l'API événements du repo Homeport avec notifications macOS
+    sur les événements critiques — CAP-5. Dépend de l'API côté repo Homeport.
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Tolérer l'absence de l'API (Homeport pas encore à niveau) : pas d'erreur,
+    affichage dégradé. Le story-spec précise le contrat attendu de l'API.
+- id: "7"
+  title: Métriques historisées
+  description: >-
+    Graphes CPU/RAM/disque/température par machine servis par l'API métriques
+    Homeport — CAP-8. Schéma de rétention tranché en architecture.
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Tolérer l'absence de l'API : pas d'erreur, affichage dégradé.
+- id: "8"
+  title: Backups planifiés côté Pi
+  description: >-
+    Systemd timers déployés par le centre, vue centrale des jobs et de leurs
+    derniers résultats, consolidation et rapatriement au réveil du Mac — CAP-7.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Valider en réel sur raspyellow d'abord ; ne jamais dérouler sur les deux
+    machines en même temps.
+- id: "9"
+  title: Outils machine — shell + updates
+  description: >-
+    Ouverture d'un shell vers la machine choisie (CAP-9) ; vue versions
+    installées vs releases taguées et update déclenchable (CAP-10).

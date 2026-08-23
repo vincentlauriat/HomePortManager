@@ -1,0 +1,269 @@
+<title>Centre de contrôle Homeport</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#0B1416; --panel:#121E21; --panel-2:#16262A; --line:#1F3236;
+    --text:#D7E3E4; --muted:#7C9295; --accent:#E8A33D; --accent-dim:#8A6425;
+    --ok:#5FBF77; --warn:#E0B054; --crit:#E06456; --teal:#4FB6AD;
+    --display:'IBM Plex Sans Condensed',Arial Narrow,sans-serif;
+    --body:'IBM Plex Sans',Helvetica,Arial,sans-serif;
+    --mono:'IBM Plex Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.55;overflow:hidden}
+  .deck{height:100%;display:flex;flex-direction:column}
+  .slides{flex:1;position:relative;overflow:hidden}
+  .slide{position:absolute;inset:0;padding:clamp(24px,5vh,56px) clamp(20px,6vw,90px);display:none;flex-direction:column;justify-content:center;overflow-y:auto}
+  .slide.active{display:flex}
+  @media (prefers-reduced-motion:no-preference){
+    .slide.active{animation:slidein .35s ease}
+    @keyframes slidein{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+  }
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+  h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6vw,64px);line-height:1.05;text-wrap:balance}
+  h2{font-family:var(--display);font-weight:700;font-size:clamp(26px,4vw,42px);line-height:1.1;margin-bottom:18px;text-wrap:balance}
+  .lead{font-size:clamp(16px,1.6vw,19px);color:var(--muted);max-width:62ch;margin-top:16px}
+  .lead strong{color:var(--text);font-weight:600}
+  .cols{display:grid;gap:16px;margin-top:26px}
+  .cols.c2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .cols.c3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 20px}
+  .card h3{font-family:var(--display);font-size:19px;font-weight:600;margin-bottom:8px}
+  .card p{font-size:14.5px;color:var(--muted)}
+  .card p strong{color:var(--text)}
+  .chip{display:inline-block;font-family:var(--mono);font-size:11.5px;padding:2px 8px;border:1px solid var(--accent-dim);border-radius:3px;color:var(--accent);margin:0 6px 6px 0;white-space:nowrap}
+  .pill{display:inline-block;font-family:var(--mono);font-size:12px;padding:2px 10px;border-radius:20px}
+  .pill.ok{background:rgba(95,191,119,.13);color:var(--ok)}
+  .pill.warn{background:rgba(224,176,84,.13);color:var(--warn)}
+  .pill.crit{background:rgba(224,100,86,.13);color:var(--crit)}
+  .diagram{display:flex;flex-wrap:wrap;gap:14px;align-items:stretch;margin-top:26px}
+  .node{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:14px 18px;min-width:170px}
+  .node .t{font-family:var(--mono);font-size:12px;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+  .node .n{font-weight:600;font-size:15px}
+  .node .d{font-size:13px;color:var(--muted);margin-top:4px}
+  .arrow{align-self:center;font-family:var(--mono);color:var(--accent);font-size:13px;white-space:nowrap;padding:0 2px}
+  table{border-collapse:collapse;width:100%;margin-top:22px;font-size:14.5px}
+  .tablewrap{overflow-x:auto;margin-top:4px}
+  th{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 14px;border-bottom:1px solid var(--line)}
+  td{padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  td:first-child{font-family:var(--mono);font-size:13px;color:var(--teal);white-space:nowrap}
+  td strong{color:var(--accent);font-weight:500;font-family:var(--mono);font-size:13px}
+  .num{font-variant-numeric:tabular-nums}
+  .footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px clamp(20px,6vw,90px);border-top:1px solid var(--line);background:var(--panel)}
+  .dots{display:flex;gap:8px;flex-wrap:wrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--line);border:0;cursor:pointer;padding:0}
+  .dot.on{background:var(--accent)}
+  .dot:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .navbtns{display:flex;gap:10px}
+  .navbtns button{font-family:var(--mono);font-size:13px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:6px 14px;cursor:pointer}
+  .navbtns button:hover{border-color:var(--accent-dim);color:var(--accent)}
+  .navbtns button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .counter{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+  .kbd{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .hero-meta{margin-top:34px;display:flex;gap:26px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .hero-meta b{color:var(--text);font-weight:500}
+  ul.tight{margin:14px 0 0 18px;font-size:15px}
+  ul.tight li{margin-bottom:8px;color:var(--muted)}
+  ul.tight li strong{color:var(--text)}
+</style>
+<div class="deck">
+<div class="slides">
+
+<section class="slide active">
+  <p class="eyebrow">HomePortManager · architecture v-next · 2026-08-23</p>
+  <h1>Centre de contrôle<br>unifié de la flotte Homeport</h1>
+  <p class="lead">Une seule fenêtre pour administrer tous les Homeport : état global, logs, événements,
+  métriques, backups planifiés, updates, shell — <strong>sans jamais ouvrir un terminal SSH à la main</strong>.</p>
+  <div class="hero-meta">
+    <span>spine <b>17 décisions</b> AD-1..AD-17</span>
+    <span>spec <b>10 capabilities</b> · 9 stories</span>
+    <span>revue <b>4 relecteurs</b> · 0 contradiction</span>
+  </div>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Le paradigme — AD-1 · AD-2</p>
+  <h2>Une lib cœur, des frontends minces</h2>
+  <p class="lead">Toute la logique vit dans <strong>HomePortKit</strong>. Le CLI et l'app ne font que présenter.
+  Chaque effet externe a un owner unique — personne d'autre n'ouvre la ressource.</p>
+  <div class="diagram">
+    <div class="node"><div class="t">frontend</div><div class="n">hpm CLI</div><div class="d">parsing + affichage</div></div>
+    <div class="node"><div class="t">frontend</div><div class="n">App SwiftUI</div><div class="d">menubar + fenêtre</div></div>
+    <div class="arrow">─►</div>
+    <div class="node" style="border-color:var(--accent-dim)"><div class="t">cœur</div><div class="n">HomePortKit</div><div class="d">toute la logique métier</div></div>
+    <div class="arrow">─►</div>
+    <div class="node"><div class="t">owners d'effets</div><div class="n">SSHClient · APIClient<br>FleetStore · HistoryStore</div><div class="d">un type par ressource</div></div>
+  </div>
+  <p class="lead" style="margin-top:22px"><strong>CLI d'abord</strong> (AD-13) : chaque capacité s'expose en
+  <span class="chip">hpm events</span><span class="chip">hpm tasks</span><span class="chip">hpm backup jobs</span><span class="chip">hpm metrics</span>
+  avant ou en même temps que dans l'app.</p>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Les canaux — AD-3 · AD-14</p>
+  <h2>Trois canaux, trois usages</h2>
+  <div class="cols c3">
+    <div class="card"><h3>SSH — agir</h3><p>Le canal historique : update, restart, backup à la demande, logs,
+    healthz de diagnostic. <strong>Identité par machine depuis fleet.yaml</strong>, partout.</p></div>
+    <div class="card"><h3>HTTP tailnet — observer</h3><p>Nouveau : Homeport sert événements, métriques et
+    <strong>capabilities</strong> sur son serveur web existant. Le tailnet est l'authentification ;
+    une seule exception ATS, partagée URLSession + WebView.</p></div>
+    <div class="card"><h3>scp — consolider</h3><p>Les archives de backup produites sur le Pi sont rapatriées
+    au fil des refreshs (rotation 10 côté Mac), en single-flight par machine.</p></div>
+  </div>
+  <p class="lead" style="margin-top:22px">Dégradation partout : trois états affichés distinctement —
+  <span class="pill ok">disponible</span> <span class="pill warn">non disponible (API absente)</span> <span class="pill crit">injoignable</span></p>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Le contrat inter-repos — AD-4</p>
+  <h2>Un contrat d'API, un seul rédacteur</h2>
+  <ul class="tight">
+    <li><strong>Source de vérité dans le repo Homeport</strong> (c'est lui qui implémente le serveur) ; copie épinglée <span class="chip">docs/api/</span> côté HomePortManager.</li>
+    <li>Versionné <strong>semver</strong> ; <span class="chip">GET /api/capabilities</span> renvoie version, features servies et epoch d'historique ; hpm déclare la plage qu'il consomme.</li>
+    <li>Le story-spec de la <strong>story 6 rédige seul la v1 complète</strong> (capabilities + events + metrics) ; la story 7 la consomme sans l'étendre.</li>
+    <li>API absente ou hors plage = <strong>affichage dégradé, jamais une erreur</strong>.</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Les données — AD-6</p>
+  <h2>Une donnée, un propriétaire</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Donnée</th><th>Propriétaire</th><th>L'autre côté</th></tr>
+    <tr><td>metrics + events</td><td>le Pi — historisés par Homeport, servis par l'API</td><td>le Mac ne garde que curseurs et marqueurs</td></tr>
+    <tr><td>journal des tâches</td><td>le Mac — <strong>hpm.db</strong> (SQLite WAL, écrit via HistoryStore seul)</td><td>les jobs Pi remontent en événements (AD-16)</td></tr>
+    <tr><td>archives backup</td><td>les deux — rotations 3 (Pi) / 10 (Mac)</td><td>la consolidation rapproche</td></tr>
+    <tr><td>définition des jobs</td><td>le Mac — config hpm, appliquée idempotente</td><td>drift détecté par doctor</td></tr>
+  </table></div>
+  <p class="lead" style="margin-top:20px">Côté Mac : <strong>un seul fichier d'état</strong>
+  <span class="chip">~/.local/state/hpm/hpm.db</span> — schéma possédé par la story 5, étendu par migrations
+  <span class="chip">PRAGMA user_version</span>, rétention bornée.</p>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Les événements — AD-5 · AD-16</p>
+  <h2>Pull avec curseur (epoch, id)</h2>
+  <div class="diagram">
+    <div class="node"><div class="t">pi</div><div class="n">Homeport historise</div><div class="d">events multi-sévérité<br>+ epoch de génération</div></div>
+    <div class="arrow">◄─ pull 30-60 s ─</div>
+    <div class="node" style="border-color:var(--accent-dim)"><div class="t">mac</div><div class="n">HomePortKit</div><div class="d">curseur (epoch, id)<br>notified_up_to distinct</div></div>
+    <div class="arrow">─►</div>
+    <div class="node"><div class="t">sortie</div><div class="n">Console + notifications</div><div class="d">critical uniquement<br>décidé dans le Kit</div></div>
+  </div>
+  <ul class="tight">
+    <li>Mac fermé une nuit → <strong>rattrapage complet</strong> au réveil ; restore côté Pi → nouvel epoch, le client repart proprement.</li>
+    <li><span class="chip">hpm events</span> peut lire sans jamais avaler une notification : lecture et notification sont deux marqueurs.</li>
+    <li>Sévérité assignée par le <strong>producteur</strong> ; critical v1 : healthz KO, disque presque plein, crash service.</li>
+    <li>Une seule politique de notification par machine : API events, sinon fallback transitions menubar — jamais les deux.</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Les backups planifiés — AD-9 → AD-11 · AD-16</p>
+  <h2>Le Pi travaille, le Mac orchestre</h2>
+  <div class="cols c2">
+    <div class="card"><h3>Sur le Pi</h3><p><span class="chip">homeport-backup.timer</span> déployé par hpm ;
+    script <strong>root et autonome</strong> : data dir résolu localement, mqtt.env inclus, backup Homeport natif si
+    disponible sinon générique, archives <strong>atomiques</strong> (tmp + mv), rotation 3.
+    Tourne <strong>Mac éteint</strong>.</p></div>
+    <div class="card"><h3>Sur le Mac</h3><p>La définition des jobs (planning, rétention) vit dans la config hpm,
+    appliquée de façon <strong>idempotente</strong>. Consolidation au refresh + <span class="chip">hpm backup sync</span>.
+    Précondition sudo vérifiée par doctor <strong>avant</strong> tout déploiement.</p></div>
+  </div>
+  <p class="lead" style="margin-top:20px">Les exécutions du timer se racontent en <strong>événements</strong> —
+  le journal Mac ne consigne que ce que le Mac initie (AD-16).</p>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">La concurrence — AD-12 · AD-17</p>
+  <h2>Une mutation à la fois, verrous des deux côtés</h2>
+  <div class="cols c3">
+    <div class="card"><h3>Entre process Mac</h3><p>CLI et app = deux process : le verrou par machine est
+    <strong>persistant dans hpm.db</strong>, pas une file en RAM. Il porte son détenteur (PID + horodatage)
+    et se reprend seul s'il est <strong>périmé</strong> — process mort ou TTL 30 min.</p></div>
+    <div class="card"><h3>Entre Mac et Pi</h3><p><strong>flock partagé</strong> côté Pi : le timer saute son tour
+    si une action hpm est en cours, et inversement. Jamais un backup pendant un update.</p></div>
+    <div class="card"><h3>Le shell : évasion assumée</h3><p>Pas de verrou, pas de journal détaillé — même statut
+    qu'un SSH manuel. Identité fleet.yaml obligatoire, une entrée informative à l'ouverture.</p></div>
+  </div>
+  <p class="lead" style="margin-top:20px">Les <strong>lectures</strong> (status, logs, métriques, événements)
+  restent libres et parallèles.</p>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">La stack — vérifiée au web, épinglée</p>
+  <h2>Peu de nouveautés, toutes bornées</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Brique</th><th>Décision</th><th>Note</th></tr>
+    <tr><td>SwiftTerm</td><td><strong>1.19.0</strong> épinglé — shell embarqué</td><td class="num">2.0 exige tools 6.2 → différé</td></tr>
+    <tr><td>Swift Charts</td><td>natif macOS 13+ — graphes métriques</td><td>zéro dépendance</td></tr>
+    <tr><td>SQLite</td><td>API C système, pas d'ORM</td><td>philosophie zéro-dep du projet</td></tr>
+    <tr><td>métriques Pi</td><td>4 échelles : 24h@1min · 7j@5min · 30j@1h · 1an@1j</td><td class="num">stockage borné, recul 1 an</td></tr>
+    <tr><td>UI</td><td>NavigationSplitView, même process que la menubar</td><td>un FleetModel @MainActor</td></tr>
+    <tr><td>livraison</td><td>DMG unique signé + notarisé (pipeline existant)</td><td>Package.resolved fait foi</td></tr>
+  </table></div>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Le plan — 3 epics, 12 stories gouvernées</p>
+  <h2>Chaque story sait ce qui la contraint</h2>
+  <div class="tablewrap"><table>
+    <tr><th class="num">#</th><th>Story</th><th>Gouvernée par</th></tr>
+    <tr><td class="num">1.1</td><td>Fenêtre + tableau de bord global</td><td><strong>AD-15</strong> un process, un FleetModel</td></tr>
+    <tr><td class="num">1.2</td><td>Journal des tâches + socle hpm.db</td><td><strong>AD-7</strong> owner du schéma · table de verrous</td></tr>
+    <tr><td class="num">1.3</td><td>Actions machine</td><td><strong>AD-12</strong> verrou révocable · confirmations</td></tr>
+    <tr><td class="num">1.4</td><td>Dashboard Homeport intégré</td><td><strong>AD-3</strong> exception ATS unique</td></tr>
+    <tr><td class="num">1.5</td><td>Logs centralisés</td><td>identité SSH fleet.yaml</td></tr>
+    <tr><td class="num">2.1</td><td>Contrat API v1 + événements</td><td><strong>AD-4·AD-5</strong> rédacteur unique · curseur (epoch, id)</td></tr>
+    <tr><td class="num">2.2</td><td>Notifications + dégradation</td><td><strong>AD-5</strong> notified_up_to distinct</td></tr>
+    <tr><td class="num">2.3</td><td>Métriques historisées</td><td><strong>AD-8</strong> consomme sans étendre</td></tr>
+    <tr><td class="num">3.1</td><td>Déploiement des jobs de backup</td><td><strong>AD-9·AD-16</strong> + précondition sudo</td></tr>
+    <tr><td class="num">3.2</td><td>Consolidation + vue des jobs</td><td><strong>AD-11</strong> single-flight</td></tr>
+    <tr><td class="num">3.3</td><td>Mises à jour</td><td><strong>AD-12</strong> · versions taguées seules</td></tr>
+    <tr><td class="num">3.4</td><td>Shell intégré</td><td><strong>AD-17</strong> · SwiftTerm 1.19.0</td></tr>
+  </table></div>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Différés — avec conditions de reprise</p>
+  <h2>Ce qu'on ne décide pas aujourd'hui</h2>
+  <ul class="tight">
+    <li><strong>Console web</strong> — quand le natif est livré. AD-3 et AD-14 lui préparent un seul point HTTP à durcir.</li>
+    <li><strong>Token applicatif + HTTPS tailscale cert</strong> — si la flotte sort du tailnet personnel, ou avec la console web.</li>
+    <li><strong>Stream SSE/WebSocket</strong> — optimisation de confort ; le pull à curseur reste la vérité.</li>
+    <li><strong>SwiftTerm 2.0, swift-argument-parser 1.8+</strong> — avec la montée de toolchain Swift 6.</li>
+    <li><strong>Sparkle</strong> — backlog, hors spec.</li>
+  </ul>
+  <p class="lead" style="margin-top:26px"><strong>Prochaine étape :</strong> adopter le spine comme companion du
+  spec, puis <span class="chip">bmad-create-epics-and-stories</span> → <span class="chip">bmad-sprint-planning</span>
+  → build (et le contrat API v1 côté repo Homeport, story 6).</p>
+</section>
+
+</div>
+<div class="footer">
+  <span class="counter num"><span id="cur">1</span> / <span id="tot">11</span></span>
+  <div class="dots" id="dots" role="tablist" aria-label="Navigation des slides"></div>
+  <div class="navbtns">
+    <button id="prev" aria-label="Slide précédente">◄</button>
+    <button id="next" aria-label="Slide suivante">►</button>
+  </div>
+  <span class="kbd">← → pour naviguer</span>
+</div>
+</div>
+<script>
+  const slides=[...document.querySelectorAll('.slide')];let i=0;
+  document.getElementById('tot').textContent=slides.length;
+  const dots=document.getElementById('dots');
+  slides.forEach((_,k)=>{const b=document.createElement('button');b.className='dot';b.setAttribute('aria-label','Slide '+(k+1));b.onclick=()=>go(k);dots.appendChild(b)});
+  function go(k){i=(k+slides.length)%slides.length;slides.forEach((s,j)=>s.classList.toggle('active',j===i));
+    [...dots.children].forEach((d,j)=>d.classList.toggle('on',j===i));
+    document.getElementById('cur').textContent=i+1;}
+  document.getElementById('prev').onclick=()=>go(i-1);
+  document.getElementById('next').onclick=()=>go(i+1);
+  addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' ')go(i+1);
+    else if(e.key==='ArrowLeft'||e.key==='PageUp')go(i-1);
+    else if(e.key==='Home')go(0);else if(e.key==='End')go(slides.length-1);});
+  go(0);
+</script>

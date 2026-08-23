@@ -1,0 +1,58 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 08-23-2026 14:45
+last_updated: 08-23-2026 14:45
+project: HomePortManager
+project_key: NOKEY
+tracking_system: file-system
+story_location: 
+  /Users/vincentlauriat/DevApps/RaspberryTools/HomePortManager/docs/build
+development_status:
+  epic-1: backlog
+  1-1-fenêtre-centre-de-contrôle-et-tableau-de-bord-global: backlog
+  1-2-journal-des-tâches-et-socle-hpm-db: backlog
+  1-3-actions-machine-avec-confirmations: backlog
+  1-4-dashboard-homeport-intégré: backlog
+  1-5-logs-centralisés: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-contrat-api-v1-et-flux-d-événements: backlog
+  2-2-notifications-critiques-et-dégradation-sans-api: backlog
+  2-3-métriques-historisées: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-déploiement-des-jobs-de-backup-planifiés: backlog
+  3-2-consolidation-des-archives-et-vue-des-jobs: backlog
+  3-3-gestion-des-mises-à-jour: backlog
+  3-4-shell-intégré: backlog
+  epic-3-retrospective: optional
