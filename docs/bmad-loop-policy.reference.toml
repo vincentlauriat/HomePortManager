@@ -17,7 +17,7 @@ cache_read_weight = 0.1      # cache reads bill at ~0.1x input on all vendors; 1
 
 [verify]
 # Deterministic gates run by the orchestrator after a clean review, before commit.
-commands = ["swift test"]    # 80 tests, ~0.3s — barrière déterministe avant chaque commit de story
+commands = ["swift test"]    # 107 tests, ~0.3s — barrière déterministe avant chaque commit de story
 
 [notify]
 desktop = true               # notify-send, best-effort
