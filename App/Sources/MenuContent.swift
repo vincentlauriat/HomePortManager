@@ -70,7 +70,7 @@ struct MachineRow: View {
         machineIssues(status, latest: model.latestTag)
     }
     private var reasons: [LocalizedStringKey] { statusReasons(issues) }
-    private var busy: Bool { model.inFlight.contains(machine.name) }
+    private var busy: Bool { model.inFlight[machine.name] != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -96,12 +96,15 @@ struct MachineRow: View {
                     .font(.caption).foregroundStyle(.orange)
                     .padding(.leading, 15)
             }
-            if let error = model.lastError[machine.name] {
-                // Machine output: shown as produced, never translated.
-                Label { Text(verbatim: error) } icon: { Image(systemName: "xmark.octagon") }
-                    .font(.caption).foregroundStyle(.red)
-                    .padding(.leading, 15)
-                    .lineLimit(3)
+            if let report = model.lastError[machine.name] {
+                // Machine output: shown as produced, never translated. A finding (doctor's
+                // failing checks on a succeeded run) warns; only a real failure reads red.
+                Label { Text(verbatim: report.message) } icon: {
+                    Image(systemName: report.kind == .failure ? "xmark.octagon" : "exclamationmark.triangle")
+                }
+                .font(.caption).foregroundStyle(report.kind == .failure ? .red : .orange)
+                .padding(.leading, 15)
+                .lineLimit(3)
             }
         }
     }

@@ -102,10 +102,10 @@ struct StatusPill: View {
 
 // MARK: - Buttons and tabs
 
-/// The only button shape in the app. Destructive stays on canvas here; a red ground is
-/// reserved for the confirmation sheet (story 1.3).
+/// The only button shape in the app. Destructive stays on canvas here; `critical` — the
+/// app's single red ground — belongs to the confirmation sheet and nowhere else.
 struct PillButtonStyle: ButtonStyle {
-    enum Kind { case primary, secondary, destructive }
+    enum Kind { case primary, secondary, destructive, critical }
     var kind: Kind = .secondary
 
     @Environment(\.isEnabled) private var isEnabled
@@ -119,21 +119,27 @@ struct PillButtonStyle: ButtonStyle {
             .background(background, in: RoundedRectangle(cornerRadius: Theme.Rounded.pill))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Rounded.pill)
-                    .stroke(kind == .primary ? Color.clear : Theme.hairline, lineWidth: 1))
+                    .stroke(filled ? Color.clear : Theme.hairline, lineWidth: 1))
             .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Rounded.pill))
     }
 
+    private var filled: Bool { kind == .primary || kind == .critical }
+
     private var foreground: Color {
         switch kind {
-        case .primary: return Theme.onPrimary
+        case .primary, .critical: return Theme.onPrimary
         case .secondary: return Theme.ink
         case .destructive: return Theme.semanticCritical
         }
     }
 
     private var background: Color {
-        kind == .primary ? Theme.ink : Theme.canvas
+        switch kind {
+        case .primary: return Theme.ink
+        case .critical: return Theme.semanticCritical
+        case .secondary, .destructive: return Theme.canvas
+        }
     }
 }
 
@@ -202,6 +208,8 @@ struct MachineBanner: View {
     let host: String
     let block: MachineBlock
     let severity: FleetRow.Severity
+    /// The in-flight mutation's "… in progress" line; nil when the machine is idle.
+    var activity: LocalizedStringKey? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.md) {
@@ -214,6 +222,15 @@ struct MachineBanner: View {
                     .foregroundStyle(Theme.ink)
             }
             Spacer(minLength: Theme.Spacing.md)
+            if let activity {
+                HStack(spacing: Theme.Spacing.xs) {
+                    ProgressView().controlSize(.small)
+                    Text(activity)
+                        .styled(Theme.body)
+                        .foregroundStyle(Theme.ink)
+                }
+                .accessibilityElement(children: .combine)
+            }
             StatusPill(severity: severity)
         }
         .padding(.vertical, Theme.Spacing.md)
@@ -221,6 +238,72 @@ struct MachineBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.color(of: block),
                     in: RoundedRectangle(cornerRadius: Theme.Rounded.lg))
+    }
+}
+
+// MARK: - Confirmation sheet
+
+/// The UX-DR6 destructive confirmation, presented with `.sheet` (whose native scrim is
+/// the dimming): a verb title, the consequence in one sentence — both repeating the
+/// machine's name — Cancel, and the app's only critical-ground button.
+struct ConfirmationSheet: View {
+    let title: LocalizedStringKey
+    let consequence: LocalizedStringKey
+    let confirmTitle: LocalizedStringKey
+    let confirm: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text(title)
+                .styled(Theme.sectionTitle)
+                .foregroundStyle(Theme.ink)
+            Text(consequence)
+                .styled(Theme.body)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(Theme.body.lineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Theme.Spacing.sm) {
+                Spacer(minLength: 0)
+                Button { dismiss() } label: { Text("Cancel") }
+                    .buttonStyle(PillButtonStyle(kind: .secondary))
+                    .keyboardShortcut(.cancelAction)
+                // Deliberately no `.defaultAction`: Return must never confirm a
+                // destructive action by reflex — Escape cancels, destroying takes a click.
+                Button { dismiss(); confirm() } label: { Text(confirmTitle) }
+                    .buttonStyle(PillButtonStyle(kind: .critical))
+            }
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(width: 420, alignment: .leading)
+        .background(Theme.canvas)
+    }
+}
+
+// MARK: - Toast
+
+/// The DESIGN.md toast token: inverse ground and ink, `Rounded.md`, transient, bottom
+/// right. It confirms in the past tense; failures never toast — they get a persistent
+/// focus in the machine sheet instead.
+struct ToastView: View {
+    /// Machine content, rendered mono and never translated.
+    let machine: String
+    let message: LocalizedStringKey
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Text(verbatim: machine)
+                .styled(Theme.data)
+                .foregroundStyle(Theme.inverseInk)
+            Text(message)
+                .styled(Theme.body)
+                .foregroundStyle(Theme.inverseInk)
+        }
+        .padding(.vertical, Theme.Spacing.xs)
+        .padding(.horizontal, Theme.Spacing.md)
+        .background(Theme.inverseCanvas, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+        .accessibilityElement(children: .combine)
     }
 }
 

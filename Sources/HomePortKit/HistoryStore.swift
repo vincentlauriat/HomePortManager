@@ -16,8 +16,8 @@ private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.sel
 public final class HistoryStore: @unchecked Sendable {
     public static let defaultPath = "~/.local/state/hpm/hpm.db"
 
-    /// `interrupted` belongs to story 1.3 (stale-lock recovery); nothing writes it here,
-    /// but the schema admits it from v1 so 1.3 needs no migration to close a dead task.
+    /// `interrupted` is written only by stale-lock recovery (`reclaim`), which closes the
+    /// orphaned `running` task of a dead or expired holder; the schema admits it from v1.
     public enum TaskStatus: String, Sendable {
         case running, success, failure, interrupted
     }
@@ -35,7 +35,33 @@ public final class HistoryStore: @unchecked Sendable {
         public let output: String
     }
 
+    /// A mutation lock's row in `locks`, as read back. The holder's identity is the pair
+    /// (pid, acquiredAt): a recycled PID is indistinguishable from a live holder by design
+    /// (schema v1 is frozen), bounded by the 30-minute TTL.
+    public struct LockInfo: Equatable, Sendable {
+        public let machine: String
+        public let pid: Int32
+        public let acquiredAt: Date
+        public let taskID: Int64?
+    }
+
+    /// What `unlock(machine:)` did. A live in-TTL holder throws instead.
+    public enum UnlockOutcome: Equatable, Sendable {
+        case nothingToUnlock
+        /// `orphanClosed` says whether a `running` task was actually closed as
+        /// `interrupted` — a NULL, purged or already-closed `task_id` releases the
+        /// lock without touching any task, and the CLI must not claim otherwise.
+        case released(LockInfo, orphanClosed: Bool)
+        /// The lock row's timestamp no longer parsed: treated as stale and removed —
+        /// leaving it would make the machine refuse mutations forever. Same
+        /// `orphanClosed` contract as `released`.
+        case releasedCorrupt(orphanClosed: Bool)
+    }
+
     private static let schemaVersion: Int32 = 1
+    /// A lock older than this is stale even if its holder still runs (AD-12): the arbiter
+    /// against a recycled PID and against a wedged action holding a machine hostage.
+    public static let lockTTL: TimeInterval = 30 * 60
     /// Retention policy (NFR7): age first, then a hard cap. Enforced only by `purge(now:)`,
     /// which only the app ever calls, at startup.
     private static let retentionSeconds: TimeInterval = 365 * 24 * 3600
@@ -59,8 +85,22 @@ public final class HistoryStore: @unchecked Sendable {
 
     private let lock = NSLock()
     private let db: OpaquePointer
+    /// Liveness probe for lock holders — injectable because a really-dead PID cannot be
+    /// fabricated deterministically in tests. The default asks the kernel.
+    private let isProcessAlive: (pid_t) -> Bool
 
-    public init(path: String = HistoryStore.defaultPath) throws {
+    /// `kill(pid, 0)` probes existence without delivering a signal: success or `EPERM`
+    /// means the process runs; only `ESRCH` means it is gone. A degenerate pid is dead
+    /// by fiat: `kill(0, 0)` would probe the caller's own process group and report any
+    /// corrupt row's holder as alive.
+    public static func defaultProcessProbe(_ pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        return kill(pid, 0) == 0 || errno != ESRCH
+    }
+
+    public init(path: String = HistoryStore.defaultPath,
+                isProcessAlive: @escaping (pid_t) -> Bool = HistoryStore.defaultProcessProbe) throws {
+        self.isProcessAlive = isProcessAlive
         let expanded = expandPath(path)
         let dir = (expanded as NSString).deletingLastPathComponent
         do {
@@ -124,17 +164,21 @@ public final class HistoryStore: @unchecked Sendable {
 
     public func finish(id: Int64, status: TaskStatus, output: String, now: Date = Date()) throws {
         lock.lock(); defer { lock.unlock() }
+        // Only a `running` row can be finished: a TTL takeover may close this very task
+        // as `interrupted` while its original holder still runs, and the holder's late
+        // finish must not rewrite that verdict — `interrupted` is sticky.
         let statement = try prepare("""
-        UPDATE tasks SET finished_at = ?1, status = ?2, output = ?3 WHERE id = ?4;
+        UPDATE tasks SET finished_at = ?1, status = ?2, output = ?3 WHERE id = ?4 AND status = ?5;
         """)
         defer { sqlite3_finalize(statement) }
         try bind(statement, 1, Self.iso8601.string(from: now))
         try bind(statement, 2, status.rawValue)
         try bind(statement, 3, output)
         try bind(statement, 4, id)
+        try bind(statement, 5, TaskStatus.running.rawValue)
         try step(statement)
-        // A vanished row (purged mid-action, external tampering) must not pass off a
-        // lost completion as a success — 1.3 relies on finish actually landing.
+        // A vanished or already-closed row must not pass off a lost completion as a
+        // success — the seam degrades this into its stderr warning.
         guard sqlite3_changes(db) > 0 else {
             throw HPMError("hpm.db: no task with id \(id) to finish")
         }
@@ -231,13 +275,202 @@ public final class HistoryStore: @unchecked Sendable {
         }
     }
 
+    // MARK: - Locks
+
+    /// Takes the machine's mutation lock, or throws the contention refusal naming the
+    /// holder. Atomicity comes from `BEGIN IMMEDIATE` — never from the NSLock, which
+    /// only serializes within one process while app and CLI are two, and `update --all`
+    /// opens N stores under a single PID.
+    ///
+    /// A stale lock — holder dead (`ESRCH`) or `acquired_at` beyond the TTL even with the
+    /// holder alive — is reclaimed in the same transaction: its orphaned `running` task is
+    /// closed as `interrupted` (tolerantly: an absent or already-closed row passes), the
+    /// row replaced.
+    public func acquireLock(machine: String, pid: Int32, now: Date = Date()) throws {
+        lock.lock(); defer { lock.unlock() }
+        try exec("BEGIN IMMEDIATE;")
+        do {
+            switch try readLockRow(machine: machine) {
+            case .none:
+                break
+            case .readable(let holder):
+                guard isStale(holder, now: now) else {
+                    throw LockContentionError("cannot run on \(machine): held by pid \(holder.pid) since \(Self.iso8601String(from: holder.acquiredAt))")
+                }
+                try reclaim(machine: machine, taskID: holder.taskID,
+                            note: "interrupted: lock held by pid \(holder.pid) since \(Self.iso8601String(from: holder.acquiredAt)) was reclaimed (process dead or lock expired)",
+                            now: now)
+            case .corrupt(let pid, let taskID):
+                // An unreadable timestamp cannot prove the lock fresh: stale by doctrine,
+                // or the machine would refuse every mutation forever.
+                try reclaim(machine: machine, taskID: taskID,
+                            note: "interrupted: unreadable lock held by pid \(pid) was reclaimed (corrupt timestamp)",
+                            now: now)
+            }
+            let statement = try prepare("""
+            INSERT INTO locks (machine, pid, acquired_at, task_id) VALUES (?1, ?2, ?3, NULL);
+            """)
+            defer { sqlite3_finalize(statement) }
+            try bind(statement, 1, machine)
+            try bind(statement, 2, pid)
+            try bind(statement, 3, Self.iso8601String(from: now))
+            try step(statement)
+            try exec("COMMIT;")
+        } catch {
+            try? exec("ROLLBACK;")
+            throw error
+        }
+    }
+
+    /// Ties the lock to the journal entry opened after acquisition, so a takeover can
+    /// close the right orphan. Scoped to (machine, pid): never rewrites a lock that a
+    /// TTL takeover has already handed to someone else.
+    public func attachTask(machine: String, pid: Int32, taskID: Int64) throws {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare("UPDATE locks SET task_id = ?1 WHERE machine = ?2 AND pid = ?3;")
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, taskID)
+        try bind(statement, 2, machine)
+        try bind(statement, 3, pid)
+        try step(statement)
+    }
+
+    /// Releases by deleting the row — only the caller's own (machine, pid) pair, so a
+    /// long-overrun action whose lock was reclaimed cannot free the new holder's.
+    /// `acquiredAt` narrows further to the caller's own acquisition: (machine, pid)
+    /// alone cannot tell an overrun action from its *own* TTL takeover in the same
+    /// process, and its late release would otherwise free the reacquired lock.
+    public func releaseLock(machine: String, pid: Int32, acquiredAt: Date? = nil) throws {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare(acquiredAt == nil
+            ? "DELETE FROM locks WHERE machine = ?1 AND pid = ?2;"
+            : "DELETE FROM locks WHERE machine = ?1 AND pid = ?2 AND acquired_at = ?3;")
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        try bind(statement, 2, pid)
+        if let acquiredAt {
+            try bind(statement, 3, Self.iso8601String(from: acquiredAt))
+        }
+        try step(statement)
+    }
+
+    public func currentLock(machine: String) throws -> LockInfo? {
+        lock.lock(); defer { lock.unlock() }
+        // Pure read: corruption stays an error here — only the reclaim paths
+        // (acquisition, unlock) may treat an unreadable row as stale.
+        switch try readLockRow(machine: machine) {
+        case .none: return nil
+        case .readable(let info): return info
+        case .corrupt:
+            throw HPMError("hpm.db: lock row for \(machine) is unreadable (bad timestamp)")
+        }
+    }
+
+    /// The testable core of `hpm unlock`: refuses while the holder is alive and within
+    /// the TTL (the error names who and since when), releases a stale lock through the
+    /// same reclaim routine as acquisition, and reports an absent lock as nothing to do.
+    public func unlock(machine: String, now: Date = Date()) throws -> UnlockOutcome {
+        lock.lock(); defer { lock.unlock() }
+        try exec("BEGIN IMMEDIATE;")
+        do {
+            switch try readLockRow(machine: machine) {
+            case .none:
+                try exec("COMMIT;")
+                return .nothingToUnlock
+            case .readable(let holder):
+                guard isStale(holder, now: now) else {
+                    throw HPMError("cannot unlock \(machine): held by pid \(holder.pid) since \(Self.iso8601String(from: holder.acquiredAt)) and that process is still running")
+                }
+                let orphanClosed = try reclaim(machine: machine, taskID: holder.taskID,
+                                               note: "interrupted: lock held by pid \(holder.pid) since \(Self.iso8601String(from: holder.acquiredAt)) was reclaimed (process dead or lock expired)",
+                                               now: now)
+                try exec("COMMIT;")
+                return .released(holder, orphanClosed: orphanClosed)
+            case .corrupt(let pid, let taskID):
+                let orphanClosed = try reclaim(machine: machine, taskID: taskID,
+                                               note: "interrupted: unreadable lock held by pid \(pid) was reclaimed (corrupt timestamp)",
+                                               now: now)
+                try exec("COMMIT;")
+                return .releasedCorrupt(orphanClosed: orphanClosed)
+            }
+        } catch {
+            try? exec("ROLLBACK;")
+            throw error
+        }
+    }
+
+    private func isStale(_ holder: LockInfo, now: Date) -> Bool {
+        // A negative age — acquired "in the future", after a clock step back — could
+        // never exceed the TTL and would make the lock eternal: stale as well.
+        let age = now.timeIntervalSince(holder.acquiredAt)
+        return !isProcessAlive(holder.pid) || age < 0 || age > Self.lockTTL
+    }
+
+    /// What the `locks` row for a machine holds. `corrupt` keeps the columns that still
+    /// read (pid, task_id) so the reclaim paths can close the orphan and say who held it.
+    private enum LockReading {
+        case none
+        case readable(LockInfo)
+        case corrupt(pid: Int32, taskID: Int64?)
+    }
+
+    /// Assumes the NSLock is held.
+    private func readLockRow(machine: String) throws -> LockReading {
+        let statement = try prepare("SELECT machine, pid, acquired_at, task_id FROM locks WHERE machine = ?1;")
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        let code = sqlite3_step(statement)
+        guard code == SQLITE_ROW else {
+            guard code == SQLITE_DONE else { throw sqliteError("hpm.db") }
+            return .none
+        }
+        let pid = sqlite3_column_int(statement, 1)
+        let taskID: Int64? = sqlite3_column_type(statement, 3) == SQLITE_NULL
+            ? nil : sqlite3_column_int64(statement, 3)
+        guard let acquiredAt = Self.iso8601.date(from: column(statement, 2)) else {
+            return .corrupt(pid: pid, taskID: taskID)
+        }
+        return .readable(LockInfo(machine: column(statement, 0),
+                                  pid: pid,
+                                  acquiredAt: acquiredAt,
+                                  taskID: taskID))
+    }
+
+    /// Assumes the NSLock is held and a transaction is open. Closes the orphan through a
+    /// tolerant UPDATE rather than `finish`, which throws on a missing row: a NULL
+    /// `task_id`, a purged row or an already-closed one must all pass silently. Returns
+    /// whether a `running` task was actually closed, so `unlock` can report honestly.
+    @discardableResult
+    private func reclaim(machine: String, taskID: Int64?, note: String, now: Date) throws -> Bool {
+        var orphanClosed = false
+        if let taskID {
+            let statement = try prepare("""
+            UPDATE tasks SET finished_at = ?1, status = ?2, output = ?3
+            WHERE id = ?4 AND status = ?5;
+            """)
+            defer { sqlite3_finalize(statement) }
+            try bind(statement, 1, Self.iso8601String(from: now))
+            try bind(statement, 2, TaskStatus.interrupted.rawValue)
+            try bind(statement, 3, note)
+            try bind(statement, 4, taskID)
+            try bind(statement, 5, TaskStatus.running.rawValue)
+            try step(statement)
+            orphanClosed = sqlite3_changes(db) > 0
+        }
+        let removal = try prepare("DELETE FROM locks WHERE machine = ?1;")
+        defer { sqlite3_finalize(removal) }
+        try bind(removal, 1, machine)
+        try step(removal)
+        return orphanClosed
+    }
+
     // MARK: - Schema
 
     private func migrate(from version: Int32) throws {
         guard version < 1 else { return }
-        // v1: the task journal plus the lock table. 1.2 owns only the *schema* of
-        // `locks`; acquisition, TTL and takeover are story 1.3 — nothing writes it here.
-        // `task_id` ties the future lock to the task 1.3 will close as `interrupted`.
+        // v1: the task journal plus the lock table. The schema is 1.2's and frozen;
+        // acquisition, TTL and takeover live in the Locks section above, same v1.
+        // `task_id` ties the lock to the task a takeover closes as `interrupted`.
         // No index: NFR6 caps the base at < 10 machines and ≤ 10 000 rows.
         try exec("""
         CREATE TABLE IF NOT EXISTS tasks (

@@ -31,7 +31,8 @@ extension HomeportManager {
     /// Returns the local filenames.
     @discardableResult
     public func configPull(from machine: Machine) throws -> [String] {
-        try journaled("config-pull", on: machine) { try performConfigPull(from: machine) }
+        // Writes on the Mac only (AD-16): journaled, never locked — the machine is read.
+        try journaled("config-pull", on: machine, locking: false) { try performConfigPull(from: machine) }
     }
 
     private func performConfigPull(from machine: Machine) throws -> [String] {
@@ -75,7 +76,7 @@ extension HomeportManager {
     /// Pushes local config file(s) into /etc/homeport. No service restart — Homeport
     /// hot-reloads its configuration.
     public func configPush(to machine: Machine, file: String?) throws {
-        try journaled("config-push", on: machine) { try performConfigPush(to: machine, file: file) }
+        try journaled("config-push", on: machine, locking: true) { try performConfigPush(to: machine, file: file) }
     }
 
     private func performConfigPush(to machine: Machine, file: String?) throws {

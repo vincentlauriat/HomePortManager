@@ -42,8 +42,9 @@ hpm status --all                                   # fleet table: version, servi
 | `hpm logs <m> [-n 50] [-f]` | Service journal; `-f` streams live |
 | `hpm restart <m>` | Restart the service, verify healthz |
 | `hpm doctor <m>` | Full diagnosis: prereqs, service, healthz, version coherence, disk, config drift |
+| `hpm unlock <m>` | Release a mutation lock left by a dead or expired process (refuses while its holder is alive and under the 30 min TTL) |
 
-Destructive commands (`restore`, `config push`, `remove`) ask for confirmation; `--yes`
+Destructive commands (`update`, `restore`, `config push`, `remove`) ask for confirmation; `--yes`
 bypasses it for scripting. `--all` runs machines in parallel (output grouped per machine)
 and ends with a per-machine summary. `status` shows uptime, disk usage of the effective
 data dir and SSH latency.

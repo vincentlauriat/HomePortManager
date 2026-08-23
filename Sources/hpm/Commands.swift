@@ -147,9 +147,16 @@ struct UpdateCmd: ParsableCommand {
     @Argument(help: "Machine name (omit with --all).") var machine: String?
     @Flag(help: "All declared machines.") var all = false
     @Option(help: "Tag to install (default: latest release).") var version: String?
+    @Flag(name: .customLong("yes"), help: "Skip confirmation.") var assumeYes = false
 
     func run() throws {
         let targets = try resolveTargets(machine: machine, all: all)
+        let names = targets.map(\.name).joined(separator: ", ")
+        let tag = version ?? "the latest release"
+        guard confirm("Update \(names) to \(tag)? A backup is taken first, then the service restarts.", assumeYes: assumeYes) else {
+            print("Aborted.")
+            return
+        }
         try forEachMachine(targets) { target, manager in
             try manager.update(on: target, version: version)
         }
@@ -362,6 +369,41 @@ struct TasksCmd: ParsableCommand {
             ])
         }
         printTable(rows)
+    }
+}
+
+// MARK: - unlock
+
+struct UnlockCmd: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "unlock", abstract: "Release a machine's mutation lock left by a dead or expired process.")
+    @Argument var machine: String
+
+    /// A skin over `HistoryStore.unlock`: the refusal/release/reclaim logic lives in the
+    /// kit where `swift test` covers it. Same doctrine as `tasks`: an unlock must not
+    /// bring the database into existence — no base means nothing to unlock.
+    func run() throws {
+        guard FileManager.default.fileExists(atPath: expandPath(HistoryStore.defaultPath)) else {
+            print("Nothing to unlock for '\(machine)'.")
+            return
+        }
+        // A live in-TTL holder makes unlock() throw, naming the pid and since when —
+        // ArgumentParser renders the HPMError and exits non-zero.
+        switch try HistoryStore().unlock(machine: machine) {
+        case .nothingToUnlock:
+            print("Nothing to unlock for '\(machine)'.")
+        case .released(let holder, let orphanClosed):
+            print("✓ lock on '\(machine)' released (was held by pid \(holder.pid) since \(HistoryStore.iso8601String(from: holder.acquiredAt)))")
+            // Only when a `running` task was really closed: a purged or already-closed
+            // orphan must not be reported as an action that happened.
+            if orphanClosed {
+                print("  its orphaned task was closed as interrupted — see: hpm tasks")
+            }
+        case .releasedCorrupt(let orphanClosed):
+            print("✓ unreadable lock on '\(machine)' removed (its timestamp was corrupt)")
+            if orphanClosed {
+                print("  its orphaned task was closed as interrupted — see: hpm tasks")
+            }
+        }
     }
 }
 

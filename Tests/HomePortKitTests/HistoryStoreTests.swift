@@ -211,6 +211,21 @@ final class HistoryStoreTests: XCTestCase {
         }
     }
 
+    /// `interrupted` is sticky: a TTL takeover can close a task whose original holder
+    /// still runs, and that holder's late `finish` must not rewrite the verdict.
+    func testFinishCannotRewriteAnInterruptedTask() throws {
+        let store = try HistoryStore(path: dbPath)
+        let id = try store.begin(action: "backup", machine: "raspcorse")
+        try rawExec("UPDATE tasks SET status = 'interrupted', finished_at = '2025-08-23T10:40:00Z' WHERE id = \(id);")
+
+        XCTAssertThrowsError(try store.finish(id: id, status: .success, output: "late")) { error in
+            XCTAssertTrue("\(error)".contains("\(id)"), "\(error)")
+        }
+        let entry = try XCTUnwrap(store.task(id: id))
+        XCTAssertEqual(entry.status, .interrupted)
+        XCTAssertNotEqual(entry.output, "late")
+    }
+
     /// Corruption is an error, not absence: a row that no longer parses must not
     /// silently shrink listings or make `task(id:)` deny the row exists.
     func testCorruptRowSurfacesAsErrorNotAbsence() throws {

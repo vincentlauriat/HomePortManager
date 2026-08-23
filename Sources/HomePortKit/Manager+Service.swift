@@ -14,7 +14,7 @@ extension HomeportManager {
 
     /// Restart the service, then verify healthz.
     public func restart(on machine: Machine) throws {
-        try journaled("restart", on: machine) {
+        try journaled("restart", on: machine, locking: true) {
             report("Restarting homeport on \(machine.name)…")
             let result = try ssh.run(on: machine.ssh, "systemctl restart \(RemotePaths.unit)", sudo: true)
             guard result.succeeded else {

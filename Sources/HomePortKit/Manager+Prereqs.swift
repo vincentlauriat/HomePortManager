@@ -44,7 +44,8 @@ public final class HomeportManager {
     }
 
     public func prereqs(on machine: Machine, fix: Bool) throws -> [PrereqCheck] {
-        try journaled("prereqs", on: machine) { try performPrereqs(on: machine, fix: fix) }
+        // A pure check reads; `fix` mutates the machine (apt-get), so only then lock.
+        try journaled("prereqs", on: machine, locking: fix) { try performPrereqs(on: machine, fix: fix) }
     }
 
     private func performPrereqs(on machine: Machine, fix: Bool) throws -> [PrereqCheck] {

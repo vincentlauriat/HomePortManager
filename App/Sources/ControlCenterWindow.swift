@@ -158,6 +158,19 @@ struct ControlCenterView: View {
                 .background(Theme.canvas)
         }
         .navigationSplitViewStyle(.balanced)
+        // The toast anchors on the window root, bottom right, whatever the detail shows.
+        // Its dismissal timer lives in `FleetModel.showToast` — model lifetime, not view
+        // lifetime, so a toast born before this window ever opened still expires. Purely
+        // informational: it must never steal the clicks of whatever it covers.
+        .overlay(alignment: .bottomTrailing) {
+            if let toast = model.toast {
+                ToastView(machine: toast.machine, message: toast.message)
+                    .padding(Theme.Spacing.lg)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.default, value: model.toast)
         .onChange(of: commands.signal) { signal in
             if signal?.command == .refresh { model.refresh() }
         }

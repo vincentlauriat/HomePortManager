@@ -39,7 +39,7 @@ development_status:
   epic-1: in-progress
   1-1-fenêtre-centre-de-contrôle-et-tableau-de-bord-global: review
   1-2-journal-des-tâches-et-socle-hpm-db: done
-  1-3-actions-machine-avec-confirmations: backlog
+  1-3-actions-machine-avec-confirmations: done
   1-4-dashboard-homeport-intégré: backlog
   1-5-logs-centralisés: backlog
   epic-1-retrospective: optional

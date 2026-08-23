@@ -11,7 +11,7 @@ struct HPM: ParsableCommand {
             MachineCmd.self, StatusCmd.self, ReleasesCmd.self, PrereqsCmd.self,
             InstallCmd.self, UpdateCmd.self, BackupCmd.self, RestoreCmd.self,
             ConfigCmd.self, RemoveCmd.self, LogsCmd.self, RestartCmd.self, DoctorCmd.self,
-            TasksCmd.self,
+            TasksCmd.self, UnlockCmd.self,
         ]
     )
 }

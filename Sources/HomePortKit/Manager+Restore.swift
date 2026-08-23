@@ -4,7 +4,7 @@ extension HomeportManager {
     /// Restores config + data from a backup archive (nil → newest local archive for this
     /// machine). Also works across machines: pass another machine's archive to migrate.
     public func restore(on machine: Machine, archive: String?) throws {
-        try journaled("restore", on: machine) { try performRestore(on: machine, archive: archive) }
+        try journaled("restore", on: machine, locking: true) { try performRestore(on: machine, archive: archive) }
     }
 
     private func performRestore(on machine: Machine, archive: String?) throws {

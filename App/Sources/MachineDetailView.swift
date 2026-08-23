@@ -53,6 +53,8 @@ struct MachineDetailView: View {
 
     @State private var tab: MachineTab = .summary
     @FocusState private var focusedTab: MachineTab?
+    /// The destructive action awaiting its UX-DR6 confirmation sheet.
+    @State private var pendingAction: FleetModel.Action?
 
     private var display: (status: MachineStatus?, lastSeen: Date?) {
         model.displayStatus(for: machine)
@@ -69,7 +71,8 @@ struct MachineDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             MachineBanner(name: machine.name, host: machine.ssh,
-                          block: model.block(for: machine.name), severity: severity)
+                          block: model.block(for: machine.name), severity: severity,
+                          activity: model.inFlight[machine.name]?.progressLabel)
             tabBar
             ScrollView {
                 content
@@ -90,6 +93,80 @@ struct MachineDetailView: View {
             model.reloadTasks()
         }
         .onDisappear { commands.handling(.selectTab, false) }
+        // The UX-DR6 confirmation. `.sheet`'s native scrim is the dimming; ⌘-shortcuts
+        // stay routed by `ControlCenterNSWindow.performKeyEquivalent` while it shows.
+        .sheet(item: $pendingAction) { action in
+            ConfirmationSheet(title: sheetTitle(action),
+                              consequence: sheetConsequence(action),
+                              confirmTitle: sheetConfirmTitle(action)) {
+                model.run(action, on: machine)
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private var busy: Bool { model.inFlight[machine.name] != nil }
+
+    /// The Summary's action bar (FR2): direct actions first, then the destructive ones,
+    /// whose ellipsis says a confirmation comes next. All of them disabled while this
+    /// machine mutates — reads elsewhere stay live, the kit's lock is never bypassed.
+    private var actionBar: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            ForEach(FleetModel.Action.allCases) { action in
+                actionButton(action)
+            }
+        }
+    }
+
+    private func actionButton(_ action: FleetModel.Action) -> some View {
+        Button {
+            if action.isDestructive {
+                pendingAction = action
+            } else {
+                model.run(action, on: machine)
+            }
+        } label: {
+            // The ellipsis is typography, not translation material.
+            Text(verbatim: action.isDestructive ? "\(action.title)…" : action.title)
+        }
+        .buttonStyle(PillButtonStyle(kind: action.isDestructive ? .destructive : .secondary))
+        .disabled(busy)
+        .accessibilityLabel(Text(verbatim: action.title))
+    }
+
+    private func sheetTitle(_ action: FleetModel.Action) -> LocalizedStringKey {
+        switch action {
+        case .update: return "Update \(machine.name)"
+        case .restore: return "Restore \(machine.name)"
+        case .remove: return "Remove \(machine.name)"
+        case .backup, .restart, .doctor, .config: return ""
+        }
+    }
+
+    private func sheetConsequence(_ action: FleetModel.Action) -> LocalizedStringKey {
+        switch action {
+        case .update:
+            // The CLI names the tag it installs; the sheet does too when it is known.
+            if let latest = model.latestTag {
+                return "A backup of \(machine.name) is taken first, then \(latest) is installed and its service restarts."
+            }
+            return "A backup of \(machine.name) is taken first, then the latest release is installed and its service restarts."
+        case .restore: return "The most recent local backup replaces the current config and data of \(machine.name)."
+        case .remove: return "Homeport is uninstalled from \(machine.name) — service, app, config and data — after a final backup."
+        case .backup, .restart, .doctor, .config: return ""
+        }
+    }
+
+    /// Dedicated `confirm.*` keys, not the action-title ones: the critical button is an
+    /// imperative ("Restaurer", "Désinstaller") where the titles are nouns in French.
+    private func sheetConfirmTitle(_ action: FleetModel.Action) -> LocalizedStringKey {
+        switch action {
+        case .update: return "confirm.update"
+        case .restore: return "confirm.restore"
+        case .remove: return "confirm.remove"
+        case .backup, .restart, .doctor, .config: return ""
+        }
     }
 
     // MARK: - Tabs
@@ -130,6 +207,10 @@ struct MachineDetailView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             if model.statuses[machine.name]?.reachable == false {
                 unreachableNotice
+            }
+            actionBar
+            if let report = model.lastError[machine.name] {
+                lastActionError(report)
             }
             VStack(alignment: .leading, spacing: 0) {
                 field("Health") { healthValue }
@@ -190,6 +271,31 @@ struct MachineDetailView: View {
                 TaskStatusPill(status: entry.status)
             },
         ]
+    }
+
+    /// A last action's persistent focus (a toast would vanish): the fact in the app's
+    /// words, the remedy being the report text itself — machine content, mono, selectable.
+    /// The headline follows the report's kind: a doctor that succeeded while finding
+    /// failing checks must not be announced as a failed action.
+    private func lastActionError(_ report: FleetModel.LastReport) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            Text(report.kind == .failure ? "Last action failed" : "Last action reported problems")
+                .styled(Theme.bodyStrong)
+                .foregroundStyle(report.kind == .failure ? Theme.semanticCritical : Theme.semanticWarning)
+            Text(verbatim: report.message)
+                .styled(Theme.data)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(Theme.data.lineSpacing)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Rounded.md)
+                .stroke((report.kind == .failure ? Theme.semanticCritical : Theme.semanticWarning).opacity(0.25), lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 
     /// The unreachable case is guiding, never an error page: the sheet keeps the last known

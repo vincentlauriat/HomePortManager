@@ -57,3 +57,27 @@ source_spec: `spec-1-2-journal-des-tâches-et-socle-hpm-db.md`
 severity: medium
 reason: Régression déjà survenue une fois (corrigée à la passe de review 3). Aucun test target ne dépend de l'exécutable hpm (Package.swift) ; testPureReadsNeverJournal épingle la règle au seam kit (un manager avec history ne journalise pas status), pas la construction du store par makeManager. Distinct du différé existant sur TasksCmd : même parapluie (couche CLI non testée), autre comportement, déjà régressé une fois.
 status: open
+
+### DW-7: La logique 1.3 côté app (gating destructif isDestructive → sheet, dispatch de run(_:on:), toast, inFlight par machine) n'a aucune vérification exécutable.
+origin: spec-deferred c0bb65d14c52
+location: App/Sources/FleetModel.swift, App/Sources/MachineDetailView.swift
+source_spec: `spec-1-3-actions-machine-avec-confirmations.md`
+severity: medium
+reason: Le target App n'a aucun test (pré-existant au repo : Package.swift ne déclare que HomePortKitTests). Retirer `.remove` de la branche destructive d'isDestructive supprimerait la confirmation UX-DR6 du bouton le plus dangereux sans qu'aucun test ne rougisse. Piste : déplacer Action (pur, sans UI) dans HomePortKit, ou ajouter un bundle de tests app au xcodeproj.
+status: open
+
+### DW-8: Les peaux CLI de la story (UnlockCmd — garde fileExists, textes — et la confirmation --yes d'UpdateCmd) n'ont aucune vérification exécutable.
+origin: spec-deferred 55397e912c0c
+location: Sources/hpm/Commands.swift (UnlockCmd, UpdateCmd)
+source_spec: `spec-1-3-actions-machine-avec-confirmations.md`
+severity: low
+reason: Même parapluie pré-existant que DW-1/DW-6 : aucun test target ne dépend de l'exécutable hpm. La logique testable (HistoryStore.unlock, refus/reprise) est volontairement dans le kit et couverte ; seuls le câblage ArgumentParser et les sorties texte restent non testés.
+status: open
+
+### DW-9: Follow-up review still recommended for 1-3-actions-machine-avec-confirmations after the damping cap was spent
+origin: review-budget-followup
+location: n/a
+source_spec: `spec-1-3-actions-machine-avec-confirmations.md`
+severity: low
+reason: The follow-up-review damping cap (limits.max_followup_reviews = 1) was spent with the story finalized (status: done, verify green) while the review pass still recommended an independent follow-up. The work was committed by bmad-loop run 20260823-185918-2f6f; this entry preserves the lingering recommendation for a deliberate later review.
+status: open

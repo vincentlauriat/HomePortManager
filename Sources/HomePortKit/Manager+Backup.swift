@@ -30,7 +30,7 @@ extension HomeportManager {
     /// pulls the archive to the Mac (keep 10 here). Returns the local archive path.
     @discardableResult
     public func backup(on machine: Machine) throws -> String {
-        try journaled("backup", on: machine) { try performBackup(on: machine) }
+        try journaled("backup", on: machine, locking: true) { try performBackup(on: machine) }
     }
 
     private func performBackup(on machine: Machine) throws -> String {

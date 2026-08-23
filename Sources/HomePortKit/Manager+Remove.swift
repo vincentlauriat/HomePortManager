@@ -5,7 +5,7 @@ extension HomeportManager {
     /// removed. /var/backups/homeport deliberately survives (and the Mac keeps its
     /// own copies).
     public func remove(on machine: Machine) throws {
-        try journaled("remove", on: machine) { try performRemove(on: machine) }
+        try journaled("remove", on: machine, locking: true) { try performRemove(on: machine) }
     }
 
     private func performRemove(on machine: Machine) throws {
