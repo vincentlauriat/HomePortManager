@@ -39,9 +39,14 @@ hpm status --all                                   # fleet table: version, servi
 | `hpm restore <m> [--archive f]` | Restore config + data (newest local archive by default), restart, verify — works across machines |
 | `hpm config pull/diff/push <m> [file]` | Edit `services.yaml` & co locally, diff before pushing; no restart needed |
 | `hpm remove <m>` | Final backup, then complete uninstall (type the machine name to confirm) |
+| `hpm logs <m> [-n 50] [-f]` | Service journal; `-f` streams live |
+| `hpm restart <m>` | Restart the service, verify healthz |
+| `hpm doctor <m>` | Full diagnosis: prereqs, service, healthz, version coherence, disk, config drift |
 
 Destructive commands (`restore`, `config push`, `remove`) ask for confirmation; `--yes`
-bypasses it for scripting. `--all` runs sequentially and ends with a per-machine summary.
+bypasses it for scripting. `--all` runs machines in parallel (output grouped per machine)
+and ends with a per-machine summary. `status` shows uptime, disk usage of the effective
+data dir and SSH latency.
 
 ## Design notes
 
