@@ -4,6 +4,10 @@ import PackageDescription
 let package = Package(
     name: "HomePortManager",
     platforms: [.macOS(.v13)],
+    products: [
+        .library(name: "HomePortKit", targets: ["HomePortKit"]),
+        .executable(name: "hpm", targets: ["hpm"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
         .package(url: "https://github.com/jpsim/Yams", from: "5.0.0"),
