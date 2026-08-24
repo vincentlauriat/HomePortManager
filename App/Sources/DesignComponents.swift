@@ -163,6 +163,86 @@ struct TabPillStyle: ButtonStyle {
     }
 }
 
+// MARK: - Overflow row
+
+/// A horizontal row that keeps every item on one line: what fits stays visible, the rest
+/// folds into a trailing "…" menu.
+///
+/// Replaces the horizontal `ScrollView` the tab bar and the action bar used to be. That
+/// scroll never truncated anything — the content was reachable — but `showsIndicators: false`
+/// left nothing to say so, and at the window's nominal 1040pt width the last pill sat flush
+/// against the edge, reading as a broken control. A menu states the overflow instead of
+/// hiding it.
+///
+/// The candidates are enumerated rather than generated: a `ForEach` inside `ViewThatFits`
+/// collapses to a single candidate, and its ten-subview ceiling covers both call sites
+/// (eight tabs, seven actions). `ViewThatFits` takes the first that fits, so the widest
+/// split is listed first. Splits wider than `items.count` render identically to the full
+/// row, which is harmless.
+///
+/// The overflow button carries the *style* of a selected item when a folded item is the
+/// active one — otherwise a tab selected from the menu would leave the bar showing no
+/// selection at all, which is worse than the overflow it replaced. `.menuStyle(.button)`
+/// lets the caller's own `ButtonStyle` apply, so no pill metric is duplicated here.
+struct OverflowRow<Item: Identifiable, ItemLabel: View, OverflowStyle: ButtonStyle>: View {
+    let items: [Item]
+    var spacing: CGFloat = Theme.Spacing.xs
+    /// Drives both the menu checkmark and the overflow button's selected appearance.
+    let isActive: (Item) -> Bool
+    let menuTitle: (Item) -> Text
+    let activate: (Item) -> Void
+    /// Receives `true` when a folded item is the active one.
+    let overflowStyle: (Bool) -> OverflowStyle
+    @ViewBuilder let itemLabel: (Item) -> ItemLabel
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            split(9)
+            split(8)
+            split(7)
+            split(6)
+            split(5)
+            split(4)
+            split(3)
+            split(2)
+            split(1)
+            split(0)
+        }
+    }
+
+    private func split(_ visible: Int) -> some View {
+        let shown = Array(items.prefix(visible))
+        let folded = Array(items.dropFirst(visible))
+        return HStack(spacing: spacing) {
+            ForEach(shown) { item in
+                itemLabel(item).fixedSize()
+            }
+            if !folded.isEmpty {
+                Menu {
+                    ForEach(folded) { item in
+                        Button { activate(item) } label: {
+                            if isActive(item) {
+                                Label { menuTitle(item) } icon: { Image(systemName: "checkmark") }
+                            } else {
+                                menuTitle(item)
+                            }
+                        }
+                    }
+                } label: {
+                    // The ellipsis is typography, not translation material — the same
+                    // reasoning as the destructive action titles.
+                    Text(verbatim: "…")
+                }
+                .menuStyle(.button)
+                .buttonStyle(overflowStyle(folded.contains(where: isActive)))
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .accessibilityLabel(Text("overflow.more"))
+            }
+        }
+    }
+}
+
 // MARK: - Sidebar
 
 struct SidebarRow: View {
