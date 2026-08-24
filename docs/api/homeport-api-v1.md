@@ -243,7 +243,6 @@ Un `kind` se lit `famille.détail`, ou tient en un seul mot. Familles émises au
 | `backup.` | `backup.ok`, `backup.stale`, `backup.failed` | Résultat d'une sauvegarde, y compris déclenchée par un timer du Pi |
 | `power.` | `power.undervoltage` | Alimentation insuffisante |
 | `temp.` | `temp.high` | Seuil de température franchi |
-| `action.` | `action.restart`, `action.wake` | Action administrative menée depuis l'interface web de Homeport |
 | *(sans famille)* | `boot` | Démarrage de la machine |
 
 **Cette liste est ouverte.** Un client ne doit ni la considérer comme fermée, ni faire dépendre son
@@ -251,9 +250,15 @@ affichage de la reconnaissance d'un `kind` : un `kind` inconnu s'affiche tel que
 La famille — ce qui précède le premier point — est le seul découpage sur lequel un client peut
 s'appuyer, et seulement pour regrouper.
 
-Les événements `action.` peuvent voir leur `detail` masqué (`null`) selon l'identité de l'appelant,
-comme le fait déjà la route non versionnée. Un client ne doit donc jamais conclure d'un `detail`
-absent que l'information n'existe pas.
+**Les actions administratives ne figurent pas dans ce flux.** La route non versionnée
+`/api/events` les fusionne à la lecture, parce qu'elle sert un livre de bord trié par date. Ici
+c'est impossible : elles vivent dans une autre table, avec leur propre séquence d'identifiants, et
+les entrelacer briserait la monotonie sur laquelle repose tout le curseur. Un client v1 voit donc
+le journal d'événements de la machine, pas l'historique des gestes d'administration menés depuis
+l'interface web de Homeport.
+
+Un `detail` absent ne veut jamais dire que l'information n'existe pas : il peut n'avoir jamais été
+consigné, ou être masqué selon l'appelant.
 
 ## 7. `GET /api/v1/metrics`
 
@@ -388,3 +393,8 @@ Récapitulatif à l'usage de l'implémentation dans le dépôt Homeport.
 | Version | Date | Changement |
 |---|---|---|
 | `1.0.0` | 2026-08-24 | Contrat initial : `capabilities`, `events`, `metrics` |
+
+Amendé le 2026-08-24, avant toute publication, à la lumière de l'implémentation serveur : la
+famille `action.` a été retirée du flux v1 — les actions administratives sont stockées à part et
+les entrelacer casserait la monotonie du curseur. La version reste `1.0.0`, le contrat n'ayant
+jamais été servi ni consommé jusque-là.
