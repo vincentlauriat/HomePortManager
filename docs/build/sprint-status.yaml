@@ -82,7 +82,7 @@ action_items:
     epic: 1
     action: "Distinguer un fleet.yaml illisible d'un fichier vide dans reloadFleet()"
     owner: "Vincent"
-    status: open
+    status: done
     ref: "docs/build/epic-1-retro-2026-08-24.md"
   - id: "epic-1-retro-item-5-lister-les-composants-réutilisables-dans"
     epic: 1

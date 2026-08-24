@@ -7,6 +7,9 @@ import HomePortKit
 @MainActor
 final class FleetModel: ObservableObject {
     @Published var machines: [Machine] = []
+    /// Non-nil when the last read of fleet.yaml failed. Distinguishes "the file does not
+    /// parse" from "the file declares nothing" — two states that produce the same empty list.
+    @Published var fleetLoadError: String?
     @Published var statuses: [String: MachineStatus] = [:]
     @Published var latestTag: String?
     @Published var refreshing = false
@@ -89,7 +92,18 @@ final class FleetModel: ObservableObject {
     }
 
     func reloadFleet() {
-        let loaded = try? FleetStore().load().machines
+        // The error is kept, not swallowed: an unreadable or half-written fleet.yaml yields
+        // the same empty list as a file that declares nothing, and the empty state then
+        // invites a user whose file *does* declare machines to add a first one. The reload
+        // button rendered neither success nor failure.
+        let loaded: [Machine]?
+        do {
+            loaded = try FleetStore().load().machines
+            fleetLoadError = nil
+        } catch {
+            loaded = nil
+            fleetLoadError = "\(error)"
+        }
         machines = loaded ?? []
         blocks = blockStore.blocks(for: machines.map(\.name))
         // Everything keyed by machine name is dropped for machines the file no longer

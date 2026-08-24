@@ -3155,6 +3155,29 @@
         }
       }
     },
+    "Your fleet file exists but does not parse, so no machine can be listed. Fix the error below, then reload.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your fleet file exists but does not parse, so no machine can be listed. Fix the error below, then reload."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre fichier de flotte existe mais ne s’analyse pas : aucune machine ne peut être listée. Corrigez l’erreur ci-dessous, puis rechargez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的机群文件存在但无法解析，因此无法列出任何机器。请修正下方的错误后重新加载。"
+          }
+        }
+      }
+    },
     "confirm.remove": {
       "extractionState": "manual",
       "localizations": {
@@ -3226,6 +3249,29 @@
         }
       },
       "comment": "Critical button of the Update confirmation sheet — an imperative, not the noun the action title uses."
+    },
+    "fleet.yaml cannot be read": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fleet.yaml cannot be read"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fleet.yaml est illisible"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 fleet.yaml"
+          }
+        }
+      }
     },
     "never": {
       "extractionState": "manual",
