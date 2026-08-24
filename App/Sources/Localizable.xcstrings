@@ -277,25 +277,25 @@
         }
       }
     },
-    "Backup jobs and restores arrive in a later epic.": {
+    "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Backup jobs and restores arrive in a later epic."
+            "value": "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les tâches de sauvegarde et les restaurations arrivent dans un epic ultérieur."
+            "value": "Les jobs de sauvegarde et les restaurations arrivent avec la story 3.2, consolidation des archives et vue des jobs."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "备份任务与恢复将在后续 epic 中提供。"
+            "value": "备份任务与恢复将随故事 3.2（归档整合与任务视图）一起提供。"
           }
         }
       }
@@ -1061,25 +1061,25 @@
         }
       }
     },
-    "Guided updates arrive in a later epic.": {
+    "Guided updates arrive with story 3.3, update management.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guided updates arrive in a later epic."
+            "value": "Guided updates arrive with story 3.3, update management."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les mises à jour guidées arrivent dans un epic ultérieur."
+            "value": "Les mises à jour guidées arrivent avec la story 3.3, gestion des mises à jour."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "引导式更新将在后续 epic 中提供。"
+            "value": "引导式更新将随故事 3.3（更新管理）一起提供。"
           }
         }
       }
@@ -1475,25 +1475,25 @@
         }
       }
     },
-    "Metric charts arrive with the Homeport API, in a later epic.": {
+    "Metric charts arrive with story 2.3, historised metrics.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Metric charts arrive with the Homeport API, in a later epic."
+            "value": "Metric charts arrive with story 2.3, historised metrics."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les graphes de métriques arrivent avec l'API Homeport, dans un epic ultérieur."
+            "value": "Les graphiques de métriques arrivent avec la story 2.3, métriques historisées."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "指标图表将随 Homeport API 在后续 epic 中提供。"
+            "value": "指标图表将随故事 2.3（历史指标）一起提供。"
           }
         }
       }
@@ -2695,48 +2695,48 @@
         }
       }
     },
-    "The embedded terminal arrives in a later epic.": {
+    "The embedded terminal arrives with story 3.4, the embedded shell.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The embedded terminal arrives in a later epic."
+            "value": "The embedded terminal arrives with story 3.4, the embedded shell."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le terminal intégré arrive dans un epic ultérieur."
+            "value": "Le terminal intégré arrive avec la story 3.4, shell intégré."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "内嵌终端将在后续 epic 中提供。"
+            "value": "内嵌终端将随故事 3.4（内嵌 Shell）一起提供。"
           }
         }
       }
     },
-    "The event stream arrives with the Homeport API, in a later epic.": {
+    "The event stream arrives with story 2.1, the v1 API contract and event stream.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The event stream arrives with the Homeport API, in a later epic."
+            "value": "The event stream arrives with story 2.1, the v1 API contract and event stream."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le flux d'événements arrive avec l'API Homeport, dans un epic ultérieur."
+            "value": "Le flux d'événements arrive avec la story 2.1, contrat d'API v1 et flux d'événements."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "事件流将随 Homeport API 在后续 epic 中提供。"
+            "value": "事件流将随故事 2.1（v1 API 契约与事件流）一起提供。"
           }
         }
       }

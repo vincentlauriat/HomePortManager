@@ -28,16 +28,17 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// What is not here yet, and who brings it. Every remaining tab arrives with a later
-    /// epic; none of them is invented a story number here.
+    /// What is not here yet, and which story brings it. The spec asks each empty tab to name
+    /// its story, not just its epic: the numbers below are the sprint-status keys, so a tab
+    /// that starts lying is caught the moment the plan changes.
     var pendingMessage: LocalizedStringKey? {
         switch self {
         case .summary, .dashboard, .logs: return nil
-        case .events: return "The event stream arrives with the Homeport API, in a later epic."
-        case .metrics: return "Metric charts arrive with the Homeport API, in a later epic."
-        case .backups: return "Backup jobs and restores arrive in a later epic."
-        case .shell: return "The embedded terminal arrives in a later epic."
-        case .updates: return "Guided updates arrive in a later epic."
+        case .events: return "The event stream arrives with story 2.1, the v1 API contract and event stream."
+        case .metrics: return "Metric charts arrive with story 2.3, historised metrics."
+        case .backups: return "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view."
+        case .shell: return "The embedded terminal arrives with story 3.4, the embedded shell."
+        case .updates: return "Guided updates arrive with story 3.3, update management."
         }
     }
 
