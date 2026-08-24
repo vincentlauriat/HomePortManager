@@ -20,7 +20,9 @@ struct FleetOverviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 header
-                if model.machines.isEmpty {
+                if let error = model.fleetLoadError {
+                    unreadableFleet(error)
+                } else if model.machines.isEmpty {
                     noFleet
                 } else if rows.isEmpty {
                     noMatch
@@ -202,6 +204,21 @@ struct FleetOverviewView: View {
 
                 hpm machine add homeport-01 --ssh pi@homeport-01.local
                 """,
+            actionTitle: "Reload fleet.yaml",
+            action: { model.reloadFleet() })
+    }
+
+    /// Takes precedence over `noFleet`: both produce an empty list, but only one of them
+    /// means the user has nothing declared. Inviting someone to add a first machine when
+    /// their file already declares several — and merely fails to parse — sends them to
+    /// write a duplicate.
+    private func unreadableFleet(_ error: String) -> some View {
+        EmptyStateView(
+            title: "fleet.yaml cannot be read",
+            message: """
+                Your fleet file exists but does not parse, so no machine can be listed.                 Fix the error below, then reload.
+                """,
+            detail: "\(expandPath(FleetStore.defaultPath))\n\n\(error)",
             actionTitle: "Reload fleet.yaml",
             action: { model.reloadFleet() })
     }
