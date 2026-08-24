@@ -62,8 +62,8 @@ action_items:
     action: "Extraire le champ de filtre dupliqué (FleetOverviewView / LogsTabView)
       en composant de DesignComponents"
     owner: "Vincent"
-    status: open
-    ref: "docs/build/epic-1-retro-2026-08-24.md"
+    status: done
+    ref: "docs/build/design-components.md"
   - id: "epic-1-retro-item-2-faire-entrer-app-sources-dans-une-cible"
     epic: 1
     action: "Compiler App/Sources dans le gate de vérification du loop (xcodegen +

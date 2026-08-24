@@ -23,6 +23,7 @@ row — an unrecorded component is the next D-1.
 | `PillButtonStyle` | any button | `.primary`, `.secondary`, `.destructive`, `.critical` |
 | `TabPillStyle` | tab selection | Selected = ink surface; pair with `focusRing(onDark: true)` |
 | `OverflowRow` | a one-line row of items that may not fit | Visible items + trailing `…` menu. See below |
+| `FilterField` | filtering a list, focused by ⌘F | Pass your **own** `@FocusState` — ⌘F arrives from outside the field |
 | `SidebarRow` | sidebar entries | |
 | `MachineBanner` | a machine's pastel header | Block colour comes from `MachineBlockStore` |
 | `ConfirmationSheet` | destructive confirmations | Names the consequence, not just the act |
