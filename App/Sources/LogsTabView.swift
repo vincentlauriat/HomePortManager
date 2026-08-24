@@ -545,11 +545,11 @@ private struct LogViewer: View {
                             pinnedToBottom = true
                             proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
                         } label: {
-                            Text("Resume follow")
+                            Text("Jump to latest")
                         }
                         .buttonStyle(PillButtonStyle(kind: .primary))
                         .padding(Theme.Spacing.sm)
-                        .accessibilityLabel(Text("Resume follow"))
+                        .accessibilityLabel(Text("Jump to latest"))
                     }
                 }
             }

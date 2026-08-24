@@ -1222,6 +1222,29 @@
         }
       }
     },
+    "Jump to latest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to latest"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revenir aux dernières lignes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳至最新"
+          }
+        }
+      }
+    },
     "Last action failed": {
       "extractionState": "manual",
       "localizations": {
@@ -2300,29 +2323,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "恢复进行中…"
-          }
-        }
-      }
-    },
-    "Resume follow": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resume follow"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reprendre le suivi"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢复跟随"
           }
         }
       }
