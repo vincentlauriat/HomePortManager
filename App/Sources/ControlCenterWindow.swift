@@ -173,6 +173,9 @@ struct ControlCenterView: View {
                 .navigationSplitViewColumnWidth(Theme.Metrics.sidebarWidth)
         } detail: {
             detail
+                // Clears the unified-toolbar strip macOS draws over this column; SwiftUI
+                // reports no safe area for it, so the offset has to be explicit.
+                .padding(.top, Theme.Metrics.splitViewTopStrip)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(Theme.canvas)
         }

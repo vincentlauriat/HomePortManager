@@ -72,6 +72,11 @@ enum Theme {
         static let tableRowHeight: CGFloat = 26
         static let blockDot: CGFloat = 8
         static let focusRing: CGFloat = 2
+        /// macOS paints a unified-toolbar strip over the top of a `NavigationSplitView`'s
+        /// detail column, and SwiftUI does not account for it: measured from inside the
+        /// detail, `safeAreaInsets.top` reads 0 while the strip covers the first 28 points.
+        /// Without this the machine banner's title is drawn under it and reads as clipped.
+        static let splitViewTopStrip: CGFloat = 28
         static let windowMinWidth: CGFloat = 900
         static let windowMinHeight: CGFloat = 600
     }
