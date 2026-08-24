@@ -105,14 +105,18 @@ L'`epoch` est une **chaîne opaque** — un client ne l'interprète jamais, ne l
 égalité, et ne suppose ni format ni ordre. Elle identifie une génération de l'historique.
 
 **Obligations du serveur.** L'epoch est stocké dans la base d'historique elle-même et créé avec
-elle. Il doit être **régénéré** par tout chemin qui réinitialise ou restaure cet historique — un
-restore, une remise à zéro, une recréation de base. Deux générations distinctes ne partagent jamais
-un epoch.
+elle. Le serveur doit le **régénérer dès qu'il constate** que la base sous ses pieds n'est plus
+celle qui portait l'epoch précédent — base recréée à vide, base d'une autre génération déposée à
+la place. Deux générations distinctes ne partagent jamais un epoch *que le serveur ait pu
+distinguer*.
 
-**Pourquoi le client ne s'en contente pas.** Cette obligation est une discipline, et une discipline
-se contourne : remettre la base en place par une simple copie de fichier ramène l'ancien epoch
-*avec* des identifiants plus bas. Un client qui reconnaîtrait l'epoch continuerait de demander
-« après 1481 » dans une base qui n'en compte plus que 200, et n'en saurait jamais rien.
+**Pourquoi le client ne s'en contente pas.** Cette obligation s'arrête là où s'arrête ce que le
+serveur peut constater, et une restauration n'est pas un geste qu'il voit passer : elle vient de
+l'extérieur, arrête le service, remplace ses fichiers, le relance. Si elle remplace *tout* l'état
+du serveur — la base et le marqueur qui atteste de son identité — celui-ci redémarre en trouvant
+deux copies concordantes d'un epoch qui n'est plus le sien. Il continue de servir l'ancien
+identifiant sur une base plus courte, et un client qui se fierait au seul epoch demanderait
+« après 1481 » dans une base qui n'en compte plus que 200, sans jamais l'apprendre.
 
 C'est la raison d'être de `latest_id`, que la réponse `events` annonce à chaque appel. **Un client
 tient son curseur pour invalide dès que l'une de ces deux conditions est vraie :**
@@ -124,12 +128,22 @@ Dans les deux cas il repart du début de l'epoch courant. La seconde condition r
 d'identifiant aussi visible qu'un changement d'epoch, quelle que soit la manière dont la base a été
 remise en place.
 
-**Ce que cette garantie ne couvre pas.** Si un restore ramène l'ancien epoch *et* que l'historique
-regrossit au-delà du curseur du client avant son sondage suivant, ni l'epoch ni `latest_id` ne
-diffèrent : la substitution passe inaperçue. Fermer ce cas demanderait au client de revérifier à
-chaque appel que l'événement portant l'identifiant de son curseur existe toujours et n'a pas changé
-— un coût permanent pour une fenêtre étroite. La v1 l'accepte sciemment, et la parade reste la
-première obligation du serveur : régénérer l'epoch à toute restauration.
+**Ce que cette garantie ne couvre pas.** Un restore qui ramène l'ancien epoch laisse une fenêtre
+ouverte : entre le moment où il remet la base en place et le sondage suivant du client, si
+l'historique regrossit au-delà du curseur, ni l'epoch ni `latest_id` ne diffèrent et la
+substitution passe inaperçue.
+
+Cette fenêtre n'est pas une bizarrerie de coin : c'est le comportement du chemin de restauration
+normal. `hpm restore` remplace l'intégralité du répertoire de données de la machine, marqueur
+d'identité compris, ce qui prive le serveur de tout moyen de constater la substitution. Un client
+doit donc traiter `latest_id` comme sa protection réelle, et non comme un filet de secours derrière
+un epoch supposé fiable.
+
+Fermer complètement ce cas demanderait soit au client de revérifier à chaque appel que l'événement
+portant l'identifiant de son curseur existe toujours et n'a pas changé — un coût permanent pour une
+fenêtre étroite — soit au chemin de restauration lui-même d'invalider l'epoch après avoir reposé la
+base, ce qui déplace l'obligation vers l'outil qui restaure. La v1 accepte sciemment la fenêtre ;
+la seconde parade reste ouverte pour une version ultérieure.
 
 Un client ne signale pas un changement d'epoch comme une erreur : c'est un événement normal du cycle
 de vie d'une machine.
@@ -372,8 +386,10 @@ Récapitulatif à l'usage de l'implémentation dans le dépôt Homeport.
 
 1. Servir `/api/v1/capabilities` en annonçant `contract`, `server`, `epoch` et `features`, et n'y
    déclarer que les surfaces réellement servies.
-2. Stocker un epoch dans la base d'historique, créé avec elle, et le **régénérer sur tout chemin de
-   restauration ou de réinitialisation**.
+2. Stocker un epoch dans la base d'historique, créé avec elle, et le **régénérer dès qu'il constate
+   une substitution** — base recréée, base d'une autre génération déposée à sa place. Le serveur
+   n'est pas tenu de détecter une restauration qui remplace aussi son marqueur d'identité (§5) ;
+   c'est `latest_id` qui protège le client dans ce cas.
 3. Exposer l'identifiant d'événement déjà présent en base, servir en ordre **croissant**, et
    accompagner chaque réponse de `latest_id` — indépendant du filtre et de `limit`.
 4. Normaliser les sévérités internes vers `info` / `warning` / `critical`, et rabattre sur
@@ -394,7 +410,13 @@ Récapitulatif à l'usage de l'implémentation dans le dépôt Homeport.
 |---|---|---|
 | `1.0.0` | 2026-08-24 | Contrat initial : `capabilities`, `events`, `metrics` |
 
-Amendé le 2026-08-24, avant toute publication, à la lumière de l'implémentation serveur : la
-famille `action.` a été retirée du flux v1 — les actions administratives sont stockées à part et
-les entrelacer casserait la monotonie du curseur. La version reste `1.0.0`, le contrat n'ayant
-jamais été servi ni consommé jusque-là.
+Amendé le 2026-08-24, avant toute publication, à la lumière de l'implémentation serveur :
+
+- la famille `action.` a été retirée du flux v1 — les actions administratives sont stockées à part
+  et les entrelacer casserait la monotonie du curseur ;
+- l'obligation « régénérer l'epoch à toute restauration » (§5, §8) a été ramenée à ce que le
+  serveur peut réellement tenir. La vérification de `hpm restore` a montré qu'il remplace tout le
+  répertoire de données, marqueur d'identité compris : le serveur ne voit rien passer. Le texte
+  présentait ce cas comme résiduel alors qu'il est le chemin de restauration normal.
+
+La version reste `1.0.0`, le contrat n'ayant jamais été servi ni consommé jusque-là.

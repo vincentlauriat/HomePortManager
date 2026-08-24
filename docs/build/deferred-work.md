@@ -149,3 +149,22 @@ status: open
 - source_spec: `spec-2-1-contrat-api-v1-et-flux-d-événements.md`
   summary: Une seule ligne du contrat épinglé est liée à du code exécutable — la plage de versions. Tout le reste du document (correspondance des sévérités, règle d'invalidation du curseur epoch/latest_id, grille des métriques et alignement de `from`/`to` sur `step_s`, conduite face aux échecs) ne repose sur rien qu'un test puisse contredire.
   evidence: Relevé pendant la revue de la story 2.1. `testThePinnedContractStatesTheSameRangeAsTheCode` ne vérifie que les lignes contenant « Plage consommée par hpm ». Ce n'est pas un défaut de cette story : le client qui consommera ces règles n'existe pas encore, et la story 2.1 s'interdit de l'écrire. Le moment de fermer ce trou est la story 2.2, quand `HomeportAPIClient` décodera de vraies réponses — les tests de décodage deviendront alors le lien manquant entre le document et le code. À reprendre à ce moment-là, sans quoi le contrat restera un texte que rien ne contraint.
+
+## `hpm restore` devrait invalider l'epoch de la machine restaurée
+
+**Constaté** le 2026-08-24, en vérifiant ce que `Manager+Restore.swift` copie réellement.
+
+Le restore fait `rm -rf /var/lib/homeport` puis `cp -a` du répertoire entier. La sentinelle
+d'identité posée par `identity.py` vit dans ce répertoire : elle voyage donc dans l'archive avec la
+base, les deux copies de l'epoch se retrouvent d'accord, et le serveur redémarre sans rien
+constater. Le mécanisme de sentinelle attrape la base déposée seule (`scp history.db`, base
+recréée) — pas le chemin de restauration normal.
+
+Le contrat v1 a été corrigé pour dire cela (§5, §8) et le client s'appuie sur `latest_id`, qui
+couvre le cas dès que l'historique restauré est plus court que le curseur. La fenêtre restante :
+un historique qui regrossit au-delà du curseur avant le sondage suivant.
+
+**Fermeture possible, hors périmètre v1** : faire invalider l'epoch par l'outil qui restaure, après
+le `cp -a` — l'agent qui substitue la base est le seul à savoir qu'il l'a fait. Cela déplace une
+obligation de Homeport vers HomePortManager et engage les deux dépôts, donc une décision de
+conception à trancher, pas un correctif à appliquer.
