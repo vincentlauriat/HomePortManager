@@ -380,6 +380,10 @@ struct ConfirmationSheet: View {
     let title: LocalizedStringKey
     let consequence: LocalizedStringKey
     let confirmTitle: LocalizedStringKey
+    /// `.critical` for a destructive action — UX-DR6 makes this the only red ground in the
+    /// app. An action that merely interrupts (a restart) confirms with an ordinary pill:
+    /// widening the confirmation must not widen the red.
+    var confirmKind: PillButtonStyle.Kind = .critical
     let confirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -402,7 +406,7 @@ struct ConfirmationSheet: View {
                 // Deliberately no `.defaultAction`: Return must never confirm a
                 // destructive action by reflex — Escape cancels, destroying takes a click.
                 Button { dismiss(); confirm() } label: { Text(confirmTitle) }
-                    .buttonStyle(PillButtonStyle(kind: .critical))
+                    .buttonStyle(PillButtonStyle(kind: confirmKind))
             }
         }
         .padding(Theme.Spacing.lg)

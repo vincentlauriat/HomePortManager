@@ -227,7 +227,25 @@ final class FleetModel: ObservableObject {
 
         var id: String { rawValue }
 
-        /// Destructive actions confirm through the UX-DR6 sheet before running.
+        /// Whether the action confirms through a sheet before running.
+        ///
+        /// Wider than `isDestructive` on purpose. A restart is not destructive — nothing is
+        /// lost — but it stops the service a production machine is serving with, and it used
+        /// to fire on the first click. The menu bar has always confirmed it
+        /// (`MenuContent.swift`, "Restart homeport on …?"), so the control center firing it
+        /// bare made the same action safe on one surface and not the other.
+        ///
+        /// Deviation from the story 1.3 spec, which lists Restart among the direct actions.
+        /// Raised and decided by Vincent on 2026-08-24.
+        var needsConfirmation: Bool {
+            switch self {
+            case .update, .restore, .remove, .restart: return true
+            case .backup, .doctor, .config: return false
+            }
+        }
+
+        /// Whether the action destroys something. Drives colour only — UX-DR6 reserves the
+        /// red ground for these three, so a confirmed restart stays an ordinary pill.
         var isDestructive: Bool {
             switch self {
             case .update, .restore, .remove: return true
