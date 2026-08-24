@@ -2,7 +2,7 @@
 title: '2.1 — Contrat API v1 et flux d''événements'
 type: 'feature'
 created: '2026-08-24'
-status: 'in-review'
+status: 'done'
 baseline_commit: '1b41a2df7e4906edca43339550ce1ae1accb280b'
 review_loop_iteration: 0
 context:
@@ -186,3 +186,47 @@ notifierait à tort. `warning` la rend visible sans réveiller personne — et l
   endpoint a-t-il un exemple de réponse complet, et chaque champ un comportement défini quand la
   donnée est absente ?
 - Vérifier que la plage semver du document et celle de `HomeportAPIContract.swift` coïncident.
+
+## Suggested Review Order
+
+**Le contrat — commencer ici**
+
+- Le mécanisme neuf de la v1 : pourquoi un epoch, et ce que le client doit en faire.
+  [`homeport-api-v1.md:100`](../api/homeport-api-v1.md#L100)
+
+- La limite assumée : le seul cas qu'`epoch` et `latest_id` ne rattrapent pas.
+  [`homeport-api-v1.md:127`](../api/homeport-api-v1.md#L127)
+
+- Les neuf obligations que ce document impose au dépôt Homeport.
+  [`homeport-api-v1.md:364`](../api/homeport-api-v1.md#L364)
+
+- La poignée de main : `features` décide, on ne sonde jamais un endpoint.
+  [`homeport-api-v1.md:63`](../api/homeport-api-v1.md#L63)
+
+- Les métriques sur grille régulière plutôt qu'en paires horodatées.
+  [`homeport-api-v1.md:258`](../api/homeport-api-v1.md#L258)
+
+**La moitié exécutable**
+
+- La décision de compatibilité : une valeur, jamais une exception.
+  [`HomeportAPIContract.swift:77`](../../Sources/HomePortKit/HomeportAPIContract.swift#L77)
+
+- Un suffixe ne fait une pré-version que si une version le précède.
+  [`HomeportAPIContract.swift:81`](../../Sources/HomePortKit/HomeportAPIContract.swift#L81)
+
+- L'accesseur sur lequel la story 2.2 se branchera sans re-trancher.
+  [`HomeportAPIContract.swift:58`](../../Sources/HomePortKit/HomeportAPIContract.swift#L58)
+
+- Semver interdit les zéros non significatifs : `01.0.0` ne nomme aucune release.
+  [`HomeportAPIContract.swift:32`](../../Sources/HomePortKit/HomeportAPIContract.swift#L32)
+
+**Les garde-fous**
+
+- Le test qui échoue si le document et le code cessent de dire la même plage.
+  [`HomeportAPIContractTests.swift:92`](../../Tests/HomePortKitTests/HomeportAPIContractTests.swift#L92)
+
+- La table de décision, chaque ligne vérifiant aussi `isCompatible`.
+  [`HomeportAPIContractTests.swift:10`](../../Tests/HomePortKitTests/HomeportAPIContractTests.swift#L10)
+
+- Deux cas nés de la revue : suffixe sur du charabia, zéros en tête.
+  [`HomeportAPIContractTests.swift:55`](../../Tests/HomePortKitTests/HomeportAPIContractTests.swift#L55)
