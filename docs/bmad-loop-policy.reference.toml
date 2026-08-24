@@ -17,7 +17,16 @@ cache_read_weight = 0.1      # cache reads bill at ~0.1x input on all vendors; 1
 
 [verify]
 # Deterministic gates run by the orchestrator after a clean review, before commit.
-commands = ["swift test"]    # 107 tests, ~0.3s — barrière déterministe avant chaque commit de story
+commands = [
+  "swift test",
+  # `swift test` ne compile QUE le graphe SwiftPM (HomePortKit, hpm). App/Sources
+  # n'y est pas : sans cette seconde commande, une erreur de compilation de l'app
+  # traverse le gate sous 225 tests verts (constaté epic 1, `.styled` sur un Label).
+  # Le script filtre la sortie de xcodebuild : bmad-loop ne passe que les 2000
+  # derniers caracteres a la session de reparation, et `-quiet` termine sur une
+  # ligne swift-frontend de plusieurs Kio qui noierait le diagnostic.
+  "bash Scripts/verify-app-build.sh",
+]
 
 [notify]
 desktop = true               # notify-send, best-effort

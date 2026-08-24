@@ -1,6 +1,6 @@
 - source_spec: `docs/build/spec-1-1-fenêtre-centre-de-contrôle-et-tableau-de-bord-global.md`
-  summary: App/Sources n'est pas dans le graphe SwiftPM, donc swift test ne compile jamais le code de l'app.
-  evidence: Package.swift ne déclare que HomePortKit, hpm et HomePortKitTests. MachineBlockStore (persistance UserDefaults), FleetModel (écriture des caches lastReachableStatus/lastSeenAt) et Color(hex:) n'ont aucun test possible ; seul xcodebuild les compile. Les 107 tests verts ne disent rien de ce code.
+  summary: App/Sources n'est pas dans le graphe SwiftPM, donc son code n'est couvert par aucun test unitaire.
+  evidence: Package.swift ne déclare que HomePortKit, hpm et HomePortKitTests. MachineBlockStore (persistance UserDefaults), FleetModel (écriture des caches lastReachableStatus/lastSeenAt) et Color(hex:) n'ont aucun test possible. La moitié « jamais compilé » est close depuis le 24/08 — le gate de vérification du loop lance xcodegen + xcodebuild après swift test — mais compiler n'est pas tester : la logique de ces trois types reste sans assertion. Piste : l'extraire vers HomePortKit, comme MachineBlock, FleetRow et MachineIssue.
 
 - source_spec: `docs/build/spec-1-1-fenêtre-centre-de-contrôle-et-tableau-de-bord-global.md`
   summary: reloadFleet() avale les erreurs de parsing YAML, rendant un fleet.yaml malformé indistinguable d'un fichier vide.

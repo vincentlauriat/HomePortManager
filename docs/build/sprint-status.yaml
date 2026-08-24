@@ -66,10 +66,10 @@ action_items:
     ref: "docs/build/epic-1-retro-2026-08-24.md"
   - id: "epic-1-retro-item-2-faire-entrer-app-sources-dans-une-cible"
     epic: 1
-    action: "Faire entrer App/Sources dans une cible testable — swift test ne compile
-      jamais le code de l'app"
+    action: "Compiler App/Sources dans le gate de vérification du loop (xcodegen +
+      xcodebuild), puisque swift test ne compile que le graphe SwiftPM"
     owner: "Vincent"
-    status: open
+    status: done
     ref: "docs/build/epic-1-retro-2026-08-24.md"
   - id: "epic-1-retro-item-3-drainer-les-deux-pipes-concurremment-dan"
     epic: 1
@@ -101,6 +101,13 @@ action_items:
   - id: "epic-1-retro-item-7-ne-jamais-faire-reposer-un-critère-de-sp"
     epic: 1
     action: "Ne jamais faire reposer un critère de spec sur un motif grep seul"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
+  - id: "epic-1-retro-item-8-rendre-le-code-app-testable-unitairement"
+    epic: 1
+    action: "Rendre le code d'App/Sources testable unitairement en extrayant sa logique
+      pure vers HomePortKit — le gate le compile désormais, il ne le teste pas"
     owner: "Vincent"
     status: open
     ref: "docs/build/epic-1-retro-2026-08-24.md"
