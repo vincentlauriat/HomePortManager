@@ -141,3 +141,30 @@ status: open
 - source_spec: none
   summary: RÉSOLU le 24/08 — DefaultProcessRunner.run pouvait interbloquer sur une commande qui écrit beaucoup sur stderr. Les deux pipes drainent désormais concurremment, et les drains démarrent avant l'écriture de stdin (même forme de blocage côté entrée). Interblocage reproduit puis fermé : l'ancien code tourne encore après 16 s là où la suite complète prend 1,4 s. Couvert par testDefaultRunnerDrainsBothPipesWhenStderrOverflowsItsBuffer et testDefaultRunnerDrainsWhileWritingALargeStdin — deux tests qui, avant le correctif, n'échouent pas mais se bloquent.
   evidence: Sources/HomePortKit/ProcessRunner.swift lit `outPipe.readDataToEndOfFile()` puis `errPipe.readDataToEndOfFile()` séquentiellement. Le commentaire ne couvre que le deadlock contre waitUntilExit. Si l'enfant écrit plus que la capacité du buffer de pipe (~64 Kio) sur stderr pendant que le parent est bloqué sur stdout, l'enfant bloque en écriture, n'atteint jamais EOF sur stdout, et le parent l'attend indéfiniment — l'app se fige sans erreur. Code antérieur au run bmad-loop (présent dès e9a257a), mais le risque monte avec les commandes ajoutées par l'epic 1 (update, doctor, config-pull), dont apt et ssh sont verbeux sur stderr. Correctif : drainer les deux pipes concurremment (readabilityHandler ou deux files), comme le fait déjà ProcessFollow pour le streaming dans le même fichier.
+
+- source_spec: `spec-2-1-contrat-api-v1-et-flux-d-événements.md`
+  summary: L'API v1 est écrite, pas servie. Le contrat `docs/api/homeport-api-v1.md` et la plage consommée par hpm existent et s'accordent, mais aucune machine ne répond sur `/api/v1/` — l'implémentation serveur reste entièrement à faire dans le dépôt Homeport, et le client (`HomeportAPIClient`, onglet Événements, `hpm events`) reste à écrire dans la story 2.2. La clé `2-1` est donc `in-progress`, pas `done`.
+  evidence: Vérifié sur raspcorse le 24/08 : `/healthz` répond `{"status":"ok","version":"0.7.2"}`, aucune route `/api/v1/` n'existe. Le contrat décrit trois choses entièrement neuves côté serveur — l'epoch et sa régénération au restore, `latest_id`, et l'agrégation des métriques en quatre échelles plus la série `disk_pct`, absente de la collecte historisée actuelle (`homeport/collectors/history.py` ne stocke que cpu/mem/temp/nvme sur une seule échelle). Les critères d'acceptation 2 et 3 de la story commencent tous deux par « Given un Homeport exposant l'API » et resteront invérifiables jusque-là ; aucune story de l'epic 2 ne peut se clore avant.
+
+- source_spec: `spec-2-1-contrat-api-v1-et-flux-d-événements.md`
+  summary: Une seule ligne du contrat épinglé est liée à du code exécutable — la plage de versions. Tout le reste du document (correspondance des sévérités, règle d'invalidation du curseur epoch/latest_id, grille des métriques et alignement de `from`/`to` sur `step_s`, conduite face aux échecs) ne repose sur rien qu'un test puisse contredire.
+  evidence: Relevé pendant la revue de la story 2.1. `testThePinnedContractStatesTheSameRangeAsTheCode` ne vérifie que les lignes contenant « Plage consommée par hpm ». Ce n'est pas un défaut de cette story : le client qui consommera ces règles n'existe pas encore, et la story 2.1 s'interdit de l'écrire. Le moment de fermer ce trou est la story 2.2, quand `HomeportAPIClient` décodera de vraies réponses — les tests de décodage deviendront alors le lien manquant entre le document et le code. À reprendre à ce moment-là, sans quoi le contrat restera un texte que rien ne contraint.
+
+## `hpm restore` devrait invalider l'epoch de la machine restaurée
+
+**Constaté** le 2026-08-24, en vérifiant ce que `Manager+Restore.swift` copie réellement.
+
+Le restore fait `rm -rf /var/lib/homeport` puis `cp -a` du répertoire entier. La sentinelle
+d'identité posée par `identity.py` vit dans ce répertoire : elle voyage donc dans l'archive avec la
+base, les deux copies de l'epoch se retrouvent d'accord, et le serveur redémarre sans rien
+constater. Le mécanisme de sentinelle attrape la base déposée seule (`scp history.db`, base
+recréée) — pas le chemin de restauration normal.
+
+Le contrat v1 a été corrigé pour dire cela (§5, §8) et le client s'appuie sur `latest_id`, qui
+couvre le cas dès que l'historique restauré est plus court que le curseur. La fenêtre restante :
+un historique qui regrossit au-delà du curseur avant le sondage suivant.
+
+**Fermeture possible, hors périmètre v1** : faire invalider l'epoch par l'outil qui restaure, après
+le `cp -a` — l'agent qui substitue la base est le seul à savoir qu'il l'a fait. Cela déplace une
+obligation de Homeport vers HomePortManager et engage les deux dépôts, donc une décision de
+conception à trancher, pas un correctif à appliquer.
