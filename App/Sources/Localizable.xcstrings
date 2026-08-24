@@ -2143,6 +2143,30 @@
         }
       }
     },
+    "Restart %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrer %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启 %@"
+          }
+        }
+      },
+      "comment": "Title of the Restart confirmation sheet."
+    },
     "Restart finished": {
       "extractionState": "manual",
       "localizations": {
@@ -2648,6 +2672,30 @@
           }
         }
       }
+    },
+    "The Homeport service on %@ stops and starts again, then its health is checked. Whatever it serves is briefly unavailable.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Homeport service on %@ stops and starts again, then its health is checked. Whatever it serves is briefly unavailable."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le service Homeport de %@ s’arrête puis redémarre, et sa santé est vérifiée. Ce qu’il sert devient brièvement indisponible."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 上的 Homeport 服务将停止并重新启动，然后检查其健康状态。其所服务的内容将短暂不可用。"
+          }
+        }
+      },
+      "comment": "Consequence line of the Restart confirmation sheet."
     },
     "The control center reads your fleet from this file. Declare a first machine and it shows up here, with its own colour.": {
       "extractionState": "manual",
@@ -3201,6 +3249,30 @@
         }
       },
       "comment": "Critical button of the Remove confirmation sheet — an imperative, not the noun the action title uses."
+    },
+    "confirm.restart": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启"
+          }
+        }
+      },
+      "comment": "Critical button of the Restart confirmation sheet — an imperative, not the noun the action title uses."
     },
     "confirm.restore": {
       "extractionState": "manual",

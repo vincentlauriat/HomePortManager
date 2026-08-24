@@ -119,7 +119,8 @@ struct MachineDetailView: View {
         .sheet(item: $pendingAction) { action in
             ConfirmationSheet(title: sheetTitle(action),
                               consequence: sheetConsequence(action),
-                              confirmTitle: sheetConfirmTitle(action)) {
+                              confirmTitle: sheetConfirmTitle(action),
+                              confirmKind: action.isDestructive ? .critical : .primary) {
                 model.run(action, on: machine)
             }
         }
@@ -142,9 +143,9 @@ struct MachineDetailView: View {
         OverflowRow(
             items: FleetModel.Action.allCases,
             isActive: { _ in false },
-            menuTitle: { Text(verbatim: $0.isDestructive ? "\($0.title)…" : $0.title) },
+            menuTitle: { Text(verbatim: $0.needsConfirmation ? "\($0.title)…" : $0.title) },
             activate: { action in
-                if action.isDestructive {
+                if action.needsConfirmation {
                     pendingAction = action
                 } else {
                     model.run(action, on: machine)
@@ -159,14 +160,16 @@ struct MachineDetailView: View {
 
     private func actionButton(_ action: FleetModel.Action) -> some View {
         Button {
-            if action.isDestructive {
+            if action.needsConfirmation {
                 pendingAction = action
             } else {
                 model.run(action, on: machine)
             }
         } label: {
-            // The ellipsis is typography, not translation material.
-            Text(verbatim: action.isDestructive ? "\(action.title)…" : action.title)
+            // The ellipsis says a confirmation comes next — which is now wider than
+            // destruction: a restart confirms too. The glyph is typography, not translation
+            // material.
+            Text(verbatim: action.needsConfirmation ? "\(action.title)…" : action.title)
         }
         .buttonStyle(PillButtonStyle(kind: action.isDestructive ? .destructive : .secondary))
         .disabled(busy)
@@ -175,10 +178,11 @@ struct MachineDetailView: View {
 
     private func sheetTitle(_ action: FleetModel.Action) -> LocalizedStringKey {
         switch action {
+        case .restart: return "Restart \(machine.name)"
         case .update: return "Update \(machine.name)"
         case .restore: return "Restore \(machine.name)"
         case .remove: return "Remove \(machine.name)"
-        case .backup, .restart, .doctor, .config: return ""
+        case .backup, .doctor, .config: return ""
         }
     }
 
@@ -190,9 +194,11 @@ struct MachineDetailView: View {
                 return "A backup of \(machine.name) is taken first, then \(latest) is installed and its service restarts."
             }
             return "A backup of \(machine.name) is taken first, then the latest release is installed and its service restarts."
+        case .restart:
+            return "The Homeport service on \(machine.name) stops and starts again, then its health is checked. Whatever it serves is briefly unavailable."
         case .restore: return "The most recent local backup replaces the current config and data of \(machine.name)."
         case .remove: return "Homeport is uninstalled from \(machine.name) — service, app, config and data — after a final backup."
-        case .backup, .restart, .doctor, .config: return ""
+        case .backup, .doctor, .config: return ""
         }
     }
 
@@ -200,10 +206,11 @@ struct MachineDetailView: View {
     /// imperative ("Restaurer", "Désinstaller") where the titles are nouns in French.
     private func sheetConfirmTitle(_ action: FleetModel.Action) -> LocalizedStringKey {
         switch action {
+        case .restart: return "confirm.restart"
         case .update: return "confirm.update"
         case .restore: return "confirm.restore"
         case .remove: return "confirm.remove"
-        case .backup, .restart, .doctor, .config: return ""
+        case .backup, .doctor, .config: return ""
         }
     }
 
