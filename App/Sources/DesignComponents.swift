@@ -163,6 +163,52 @@ struct TabPillStyle: ButtonStyle {
     }
 }
 
+// MARK: - Filter field
+
+/// The soft-surfaced text field that filters a list, focused by ⌘F.
+///
+/// Extracted from `FleetOverviewView` (story 1.1) and `LogsTabView` (story 1.5), which
+/// carried ten byte-identical modifier lines apiece — finding **D-1** of the epic 1
+/// retrospective, and the reason `docs/build/design-components.md` now exists.
+///
+/// `focus` is the caller's own `@FocusState` rather than one owned here: ⌘F arrives from
+/// outside the field (a window-level signal the host view watches), so the state has to
+/// live where that signal lands.
+struct FilterField: View {
+    @Binding var text: String
+    /// The visible placeholder.
+    let prompt: LocalizedStringKey
+    /// Kept distinct from `prompt`: the fleet field shows the short "Filter by name" but
+    /// announces the unambiguous "Filter machines by name". Folding them would change the
+    /// visible text and orphan a catalog key.
+    let accessibility: LocalizedStringKey
+    /// The tooltip, which names the shortcut. Kept a parameter rather than composed from
+    /// `prompt`: each call site owns its own catalog key, and folding them into one
+    /// concatenation would drop two localized keys from the catalogue.
+    let hint: LocalizedStringKey
+    let focus: FocusState<Bool>.Binding
+
+    var body: some View {
+        TextField(text: $text) {
+            Text(prompt)
+        }
+        .textFieldStyle(.plain)
+        .themeFont(Theme.data)
+        .foregroundStyle(Theme.ink)
+        .focused(focus)
+        .frame(width: 200)
+        .padding(.vertical, 4)
+        .padding(.horizontal, Theme.Spacing.xs)
+        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Rounded.md)
+                .stroke(focus.wrappedValue ? Theme.ink : Theme.hairline,
+                        lineWidth: focus.wrappedValue ? Theme.Metrics.focusRing : 1))
+        .help(Text(hint))
+        .accessibilityLabel(Text(accessibility))
+    }
+}
+
 // MARK: - Overflow row
 
 /// A horizontal row that keeps every item on one line: what fits stays visible, the rest

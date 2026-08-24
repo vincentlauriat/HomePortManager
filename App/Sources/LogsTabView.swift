@@ -386,23 +386,11 @@ struct LogsTabView: View {
     }
 
     private var filterField: some View {
-        TextField(text: $session.filter) {
-            Text("Filter log lines")
-        }
-        .textFieldStyle(.plain)
-        .themeFont(Theme.data)
-        .foregroundStyle(Theme.ink)
-        .focused($filterFocused)
-        .frame(width: 200)
-        .padding(.vertical, 4)
-        .padding(.horizontal, Theme.Spacing.xs)
-        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Rounded.md)
-                .stroke(filterFocused ? Theme.ink : Theme.hairline,
-                        lineWidth: filterFocused ? Theme.Metrics.focusRing : 1))
-        .help(Text("Filter log lines (⌘F)"))
-        .accessibilityLabel(Text("Filter log lines"))
+        FilterField(text: $session.filter,
+                    prompt: "Filter log lines",
+                    accessibility: "Filter log lines",
+                    hint: "Filter log lines (⌘F)",
+                    focus: $filterFocused)
     }
 
     // MARK: - Content
