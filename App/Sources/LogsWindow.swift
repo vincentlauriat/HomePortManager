@@ -17,7 +17,9 @@ enum LogsWindow {
                               styleMask: [.titled, .closable, .resizable],
                               backing: .buffered, defer: false)
         window.title = String(localized: "Logs — \(machine.name)")
-        window.contentView = NSHostingView(rootView: LogsView(machine: machine, model: model))
+        // See ControlCenterWindow: a raw NSHostingView would draw under the title bar.
+        window.contentViewController = NSHostingController(
+            rootView: LogsView(machine: machine, model: model))
         window.isReleasedWhenClosed = false
         window.center()
         windows[machine.name] = window
@@ -36,7 +38,8 @@ struct LogsView: View {
         VStack(spacing: 0) {
             ScrollView {
                 Text(text)
-                    .font(.system(.caption, design: .monospaced))
+                    .styled(Theme.data)
+                    .foregroundStyle(Theme.ink)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)

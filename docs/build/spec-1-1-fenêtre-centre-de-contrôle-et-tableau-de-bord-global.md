@@ -137,7 +137,8 @@ deferred: []
 - `cd App && xcodegen generate` — expected: `HomePortMenu.xcodeproj` régénéré sans avertissement sur les ressources.
 - `xcodebuild -project App/HomePortMenu.xcodeproj -scheme HomePortMenu -configuration Debug build CODE_SIGNING_ALLOWED=NO` — expected: `BUILD SUCCEEDED`.
 - `find <chemin du .app construit>/Contents/Resources -name '*.lproj'` — expected: `en.lproj`, `fr.lproj` et `zh-Hans.lproj` présents (preuve que le String Catalog est bien compilé dans le bundle).
-- `grep -nE '#[0-9a-fA-F]{6}|Color\(red:|\.font\(\.system\(size:' App/Sources/*.swift` — expected: aucune occurrence hors `App/Sources/Theme.swift`.
+- `grep -nE '#[0-9a-fA-F]{6}|Color\(red:|\.font\(\.(system|custom|caption|body|title)|\.(foregroundStyle|foregroundColor|fill)\(\.(gray|red|green|orange|blue|yellow|secondary|primary)\)' App/Sources/*.swift` — expected: aucune occurrence hors `App/Sources/Theme.swift`.
+  Le motif d'origine ne couvrait que `.font(.system(size:` et laissait passer `.font(.caption)`, `.font(.system(.caption, design:))` et les couleurs système `.secondary`/`.orange`/`.red` — six occurrences ont ainsi traversé la revue dans `MenuContent.swift` et `LogsWindow.swift`.
 
 **Manual checks (if no CLI):**
 - Ouvrir la fenêtre depuis la menubar : min 900×600 respecté, sidebar 220 px, une seule fenêtre quel que soit le nombre d'invocations.

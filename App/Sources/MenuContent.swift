@@ -27,7 +27,8 @@ struct MenuContent: View {
                     Text(verbatim: "hpm machine add <name> --ssh <host>")
                         .textSelection(.enabled)
                 }
-                .font(.caption).foregroundStyle(.secondary)
+                .themeFont(Theme.data)
+                .foregroundStyle(Theme.ink)
             }
             ForEach(model.machines, id: \.name) { machine in
                 MachineRow(model: model, machine: machine)
@@ -77,7 +78,7 @@ struct MachineRow: View {
             HStack(spacing: 6) {
                 Circle().fill(dotColor).frame(width: 9, height: 9)
                 Text(verbatim: machine.name).fontWeight(.semibold)
-                versionText.foregroundStyle(.secondary).font(.caption)
+                versionText.themeFont(Theme.data).foregroundStyle(Theme.ink)
                 Spacer()
                 if busy {
                     ProgressView().controlSize(.small)
@@ -87,13 +88,15 @@ struct MachineRow: View {
             }
             if let status, status.reachable {
                 Text("Uptime \(uptime) · Disk \(disk) · Backup \(backup)")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .styled(Theme.data)
+                    .foregroundStyle(Theme.ink)
                     .padding(.leading, 15)
             }
             // `LocalizedStringKey` is not Hashable: the position is the identity here.
             ForEach(Array(reasons.enumerated()), id: \.offset) { _, reason in
                 Label { Text(reason) } icon: { Image(systemName: "exclamationmark.triangle") }
-                    .font(.caption).foregroundStyle(.orange)
+                    .themeFont(Theme.body)
+                    .foregroundStyle(Theme.semanticWarning)
                     .padding(.leading, 15)
             }
             if let report = model.lastError[machine.name] {
@@ -102,7 +105,8 @@ struct MachineRow: View {
                 Label { Text(verbatim: report.message) } icon: {
                     Image(systemName: report.kind == .failure ? "xmark.octagon" : "exclamationmark.triangle")
                 }
-                .font(.caption).foregroundStyle(report.kind == .failure ? .red : .orange)
+                .themeFont(Theme.body)
+                .foregroundStyle(report.kind == .failure ? Theme.semanticCritical : Theme.semanticWarning)
                 .padding(.leading, 15)
                 .lineLimit(3)
             }

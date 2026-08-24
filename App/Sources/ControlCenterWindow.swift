@@ -21,7 +21,11 @@ enum ControlCenterWindow {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
         window.title = String(localized: "Control Center")
-        window.contentView = NSHostingView(
+        // `contentViewController`, not `contentView`: an `NSHostingView` set as the raw
+        // content view fills the whole window frame, titlebar included, because SwiftUI has
+        // no safe area to read there — the machine banner was drawn under the title bar and
+        // clipped. A hosting *controller* lets AppKit lay the view out below the titlebar.
+        window.contentViewController = NSHostingController(
             rootView: ControlCenterView(model: model, commands: window.commands))
         window.contentMinSize = NSSize(width: Theme.Metrics.windowMinWidth,
                                        height: Theme.Metrics.windowMinHeight)
