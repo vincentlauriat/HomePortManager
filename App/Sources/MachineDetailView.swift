@@ -133,16 +133,28 @@ struct MachineDetailView: View {
     /// whose ellipsis says a confirmation comes next. All of them disabled while this
     /// machine mutates — reads elsewhere stay live, the kit's lock is never bypassed.
     private var actionBar: some View {
-        // Scrolls like the tab bar rather than wrapping: at the 900pt minimum the seven
-        // labels do not fit, and a wrapped "Désinstallation…" reads as a broken control
-        // rather than a narrow one. Each label keeps its own line.
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.Spacing.xs) {
-                ForEach(FleetModel.Action.allCases) { action in
-                    actionButton(action).fixedSize()
+        // Folds into a "…" menu rather than wrapping: at the 900pt minimum the seven labels
+        // do not fit, and a wrapped "Désinstallation…" reads as a broken control rather than
+        // a narrow one. Each label keeps its own line.
+        //
+        // No action is ever "active", so the overflow button never takes a selected
+        // appearance — unlike the tab bar, it only ever states that actions are hidden.
+        OverflowRow(
+            items: FleetModel.Action.allCases,
+            isActive: { _ in false },
+            menuTitle: { Text(verbatim: $0.isDestructive ? "\($0.title)…" : $0.title) },
+            activate: { action in
+                if action.isDestructive {
+                    pendingAction = action
+                } else {
+                    model.run(action, on: machine)
                 }
-            }
-        }
+            },
+            overflowStyle: { _ in PillButtonStyle(kind: .secondary) },
+            itemLabel: { actionButton($0) }
+        )
+        // The menu inherits the same lock the buttons obey: the kit's lock is never bypassed.
+        .disabled(busy)
     }
 
     private func actionButton(_ action: FleetModel.Action) -> some View {
@@ -215,24 +227,29 @@ struct MachineDetailView: View {
     }
 
     private var tabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.Spacing.xs) {
-                ForEach(MachineTab.allCases) { candidate in
-                    Button { tab = candidate } label: { Text(candidate.title) }
-                        .buttonStyle(TabPillStyle(selected: tab == candidate))
-                        .focused($focusedTab, equals: candidate)
-                        // A selected pill is an ink surface: its ring has to be inverse ink.
-                        .focusRing(focusedTab == candidate, cornerRadius: Theme.Rounded.pill,
-                                   onDark: tab == candidate)
-                        // Concatenated rather than interpolated: the shortcut is a literal
-                        // key combination, the title a catalog key.
-                        .help(Text(candidate.title) + Text(verbatim: " (⌘\(candidate.rawValue))"))
-                        .accessibilityLabel(Text(candidate.title))
-                        .accessibilityAddTraits(tab == candidate ? [.isSelected] : [])
-                }
+        // A folded tab stays reachable two ways: from this menu, and from its ⌘1–⌘8 shortcut,
+        // which the window handles in performKeyEquivalent and never consulted this bar.
+        OverflowRow(
+            items: MachineTab.allCases,
+            isActive: { tab == $0 },
+            menuTitle: { Text($0.title) },
+            activate: { tab = $0 },
+            overflowStyle: { TabPillStyle(selected: $0) },
+            itemLabel: { candidate in
+                Button { tab = candidate } label: { Text(candidate.title) }
+                    .buttonStyle(TabPillStyle(selected: tab == candidate))
+                    .focused($focusedTab, equals: candidate)
+                    // A selected pill is an ink surface: its ring has to be inverse ink.
+                    .focusRing(focusedTab == candidate, cornerRadius: Theme.Rounded.pill,
+                               onDark: tab == candidate)
+                    // Concatenated rather than interpolated: the shortcut is a literal
+                    // key combination, the title a catalog key.
+                    .help(Text(candidate.title) + Text(verbatim: " (⌘\(candidate.rawValue))"))
+                    .accessibilityLabel(Text(candidate.title))
+                    .accessibilityAddTraits(tab == candidate ? [.isSelected] : [])
             }
-            .padding(.vertical, Theme.Spacing.hair)
-        }
+        )
+        .padding(.vertical, Theme.Spacing.hair)
     }
 
     @ViewBuilder

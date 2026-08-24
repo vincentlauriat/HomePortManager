@@ -89,8 +89,8 @@ action_items:
     action: "Lister les composants réutilisables dans un artefact que les stories
       suivantes lisent"
     owner: "Vincent"
-    status: open
-    ref: "docs/build/epic-1-retro-2026-08-24.md"
+    status: done
+    ref: "docs/build/design-components.md"
   - id: "epic-1-retro-item-6-traiter-le-lancement-de-l-application-co"
     epic: 1
     action: "Traiter le lancement de l'application comme une étape de vérification

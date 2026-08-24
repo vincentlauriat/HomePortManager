@@ -3250,6 +3250,30 @@
         }
       }
     },
+    "overflow.more": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        }
+      },
+      "comment": "Accessibility label of the overflow row's “…” button. The visible glyph is typography, so only assistive technology reads this."
+    },
     "status.pill.critical": {
       "extractionState": "manual",
       "localizations": {
