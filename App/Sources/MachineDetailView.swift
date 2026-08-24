@@ -132,9 +132,14 @@ struct MachineDetailView: View {
     /// whose ellipsis says a confirmation comes next. All of them disabled while this
     /// machine mutates — reads elsewhere stay live, the kit's lock is never bypassed.
     private var actionBar: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            ForEach(FleetModel.Action.allCases) { action in
-                actionButton(action)
+        // Scrolls like the tab bar rather than wrapping: at the 900pt minimum the seven
+        // labels do not fit, and a wrapped "Désinstallation…" reads as a broken control
+        // rather than a narrow one. Each label keeps its own line.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.Spacing.xs) {
+                ForEach(FleetModel.Action.allCases) { action in
+                    actionButton(action).fixedSize()
+                }
             }
         }
     }

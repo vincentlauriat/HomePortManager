@@ -20,6 +20,8 @@ enum LogsWindow {
         // See ControlCenterWindow: a raw NSHostingView would draw under the title bar.
         window.contentViewController = NSHostingController(
             rootView: LogsView(machine: machine, model: model))
+        // Same as the control center: Theme is a light palette, the frame must agree.
+        window.appearance = NSAppearance(named: .aqua)
         window.isReleasedWhenClosed = false
         window.center()
         windows[machine.name] = window

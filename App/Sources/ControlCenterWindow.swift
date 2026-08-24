@@ -27,8 +27,17 @@ enum ControlCenterWindow {
         // clipped. A hosting *controller* lets AppKit lay the view out below the titlebar.
         window.contentViewController = NSHostingController(
             rootView: ControlCenterView(model: model, commands: window.commands))
+        // AFTER `contentViewController`, never before: assigning it resets the window's
+        // min/max content size, so a min pinned earlier is silently dropped and the window
+        // can be dragged below 900x600 — which wraps the action pills onto three lines.
         window.contentMinSize = NSSize(width: Theme.Metrics.windowMinWidth,
                                        height: Theme.Metrics.windowMinHeight)
+        window.setContentSize(NSSize(width: 1040, height: 680))
+        // `Theme` is a light palette pinned in hex, and the spec rules dark mode out. Left to
+        // inherit a dark system appearance the window gets a black title bar and paints every
+        // strip the content does not cover in dark grey — which is what clipped the machine
+        // banner. Pinning aqua makes the frame agree with the palette it hosts.
+        window.appearance = NSAppearance(named: .aqua)
         window.isReleasedWhenClosed = false
         window.center()
         Self.window = window
@@ -168,6 +177,11 @@ struct ControlCenterView: View {
                 .background(Theme.canvas)
         }
         .navigationSplitViewStyle(.balanced)
+        // A NavigationSplitView in a titled window reserves a window-toolbar strip above the
+        // detail column and draws the material over it, clipping the machine banner. This
+        // window has no toolbar items at all — the shortcuts live on the NSWindow — so the
+        // strip is pure loss.
+        .toolbar(.hidden, for: .windowToolbar)
         // The toast anchors on the window root, bottom right, whatever the detail shows.
         // Its dismissal timer lives in `FleetModel.showToast` — model lifetime, not view
         // lifetime, so a toast born before this window ever opened still expires. Purely

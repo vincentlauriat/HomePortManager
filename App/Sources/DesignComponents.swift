@@ -217,6 +217,10 @@ struct MachineBanner: View {
                 Text(verbatim: name)
                     .styled(Theme.windowTitle)
                     .foregroundStyle(Theme.ink)
+                    // `styled` carries face and tracking but not the token's line height, so
+                    // a 22pt light title gets a frame shorter than its own ascender and is
+                    // clipped along the top. Let it keep its natural height.
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(verbatim: host)
                     .styled(Theme.data)
                     .foregroundStyle(Theme.ink)
