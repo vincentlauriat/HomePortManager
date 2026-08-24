@@ -36,6 +36,32 @@ public extension ProcessRunner {
     }
 }
 
+/// Holds the two concurrent drains' results. Each stream is written once on its own queue
+/// and read only after `DispatchGroup.wait`, which is what orders the writes before the
+/// read; the lock guards the two `async` blocks against each other.
+private final class OutputCollector {
+    enum Stream { case out, err }
+
+    private let lock = NSLock()
+    private var out = Data()
+    private var err = Data()
+
+    func put(_ stream: Stream, _ data: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+        switch stream {
+        case .out: out = data
+        case .err: err = data
+        }
+    }
+
+    var pair: (Data, Data) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (out, err)
+    }
+}
+
 public struct DefaultProcessRunner: ProcessRunner {
     public init() {}
 
@@ -49,22 +75,47 @@ public struct DefaultProcessRunner: ProcessRunner {
         process.standardOutput = outPipe
         process.standardError = errPipe
 
-        if let stdin {
-            let inPipe = Pipe()
-            process.standardInput = inPipe
-            try process.run()
-            inPipe.fileHandleForWriting.write(Data(stdin.utf8))
-            inPipe.fileHandleForWriting.closeFile()
+        let inPipe: Pipe?
+        if stdin != nil {
+            let pipe = Pipe()
+            process.standardInput = pipe
+            inPipe = pipe
         } else {
             process.standardInput = FileHandle.nullDevice
-            try process.run()
+            inPipe = nil
         }
 
-        // Drain pipes before waiting so large outputs can't deadlock the child.
-        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        try process.run()
+
+        // Both pipes drain concurrently, and both drains start before stdin is written.
+        //
+        // Read sequentially, a child that fills stderr's ~64KiB buffer while the parent
+        // blocks on stdout blocks in turn on its own write: it never reaches EOF on stdout,
+        // the parent never returns, and the app freezes with no error to show. The commands
+        // this app runs — `apt` and `ssh` under update, doctor and config-pull — are exactly
+        // the verbose-on-stderr kind.
+        //
+        // Writing stdin before draining has the same shape: the child can fill either output
+        // buffer before it has finished reading its input, so the write blocks forever.
+        let collected = OutputCollector()
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "fr.homeport.process-drain", attributes: .concurrent)
+        queue.async(group: group) {
+            collected.put(.out, outPipe.fileHandleForReading.readDataToEndOfFile())
+        }
+        queue.async(group: group) {
+            collected.put(.err, errPipe.fileHandleForReading.readDataToEndOfFile())
+        }
+
+        if let inPipe, let stdin {
+            inPipe.fileHandleForWriting.write(Data(stdin.utf8))
+            inPipe.fileHandleForWriting.closeFile()
+        }
+
+        group.wait()
         process.waitUntilExit()
 
+        let (outData, errData) = collected.pair
         return CommandResult(
             exitCode: process.terminationStatus,
             stdout: String(decoding: outData, as: UTF8.self),

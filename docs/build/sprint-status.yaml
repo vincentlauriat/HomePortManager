@@ -76,7 +76,7 @@ action_items:
     action: "Drainer les deux pipes concurremment dans DefaultProcessRunner.run (interblocage
       stderr)"
     owner: "Vincent"
-    status: open
+    status: done
     ref: "docs/build/epic-1-retro-2026-08-24.md"
   - id: "epic-1-retro-item-4-distinguer-un-fleet-yaml-illisible-d-un"
     epic: 1

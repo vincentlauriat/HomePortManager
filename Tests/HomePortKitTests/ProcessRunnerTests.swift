@@ -40,6 +40,35 @@ final class ProcessRunnerTests: XCTestCase {
         XCTAssertEqual(result.stdout, "ping")
     }
 
+    /// Both output pipes have to drain concurrently. Read one after the other, a child that
+    /// fills stderr's ~64KiB buffer blocks on its own write, never reaches EOF on stdout, and
+    /// hangs the caller for good.
+    ///
+    /// Note the failure mode: before the fix these two tests do not fail, they *hang* — which
+    /// is precisely the bug, and why neither could have been caught by a passing suite.
+    func testDefaultRunnerDrainsBothPipesWhenStderrOverflowsItsBuffer() throws {
+        // 256KiB on stderr, four times the buffer, with stdout written only afterwards.
+        let script = "head -c 262144 /dev/zero | tr '\\0' 'x' >&2; echo done"
+        let result = try DefaultProcessRunner().run("/bin/sh", ["-c", script], stdin: nil)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, "done\n")
+        XCTAssertEqual(result.stderr.count, 262_144)
+    }
+
+    /// The same hazard on the input side: the child fills an output buffer before it has
+    /// finished reading stdin, so a write that precedes the drains never returns.
+    func testDefaultRunnerDrainsWhileWritingALargeStdin() throws {
+        let input = String(repeating: "y", count: 200_000)
+        // Echoes its input back on stderr while stdout also fills.
+        let script = "cat >&2; head -c 100000 /dev/zero | tr '\\0' 'z'"
+        let result = try DefaultProcessRunner().run("/bin/sh", ["-c", script], stdin: input)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stderr.count, 200_000)
+        XCTAssertEqual(result.stdout.count, 100_000)
+    }
+
     // MARK: - Streaming
 
     func testDefaultRunnerStreamsLinesInOrder() async throws {
