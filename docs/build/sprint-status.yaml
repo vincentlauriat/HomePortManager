@@ -94,10 +94,13 @@ action_items:
   - id: "epic-1-retro-item-6-traiter-le-lancement-de-l-application-co"
     epic: 1
     action: "Traiter le lancement de l'application comme une étape de vérification
-      à part entière"
+      à part entière. PARTIEL au 24/08 : Scripts/render-probe rend un composant
+      isolé dans une vraie fenêtre et le capture, sans geste humain — mais ne dit
+      rien de la façon dont ce composant s'insère dans la fenêtre, là où vivait le
+      rognage du bandeau. Reste ouvert."
     owner: "Vincent"
     status: open
-    ref: "docs/build/epic-1-retro-2026-08-24.md"
+    ref: "Scripts/render-probe/run.sh"
   - id: "epic-1-retro-item-7-ne-jamais-faire-reposer-un-critère-de-sp"
     epic: 1
     action: "Ne jamais faire reposer un critère de spec sur un motif grep seul"
