@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-23-2026 14:45
-last_updated: 08-24-2026 12:05
+last_updated: 08-24-2026 12:30
 project: HomePortManager
 project_key: NOKEY
 tracking_system: file-system
@@ -42,7 +42,7 @@ development_status:
   1-3-actions-machine-avec-confirmations: done
   1-4-dashboard-homeport-intégré: done
   1-5-logs-centralisés: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   epic-2: backlog
   2-1-contrat-api-v1-et-flux-d-événements: backlog
@@ -56,3 +56,51 @@ development_status:
   3-3-gestion-des-mises-à-jour: backlog
   3-4-shell-intégré: backlog
   epic-3-retrospective: optional
+action_items:
+  - id: "epic-1-retro-item-1-extraire-le-champ-de-filtre-dupliqué-fle"
+    epic: 1
+    action: "Extraire le champ de filtre dupliqué (FleetOverviewView / LogsTabView)
+      en composant de DesignComponents"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
+  - id: "epic-1-retro-item-2-faire-entrer-app-sources-dans-une-cible"
+    epic: 1
+    action: "Faire entrer App/Sources dans une cible testable — swift test ne compile
+      jamais le code de l'app"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
+  - id: "epic-1-retro-item-3-drainer-les-deux-pipes-concurremment-dan"
+    epic: 1
+    action: "Drainer les deux pipes concurremment dans DefaultProcessRunner.run (interblocage
+      stderr)"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
+  - id: "epic-1-retro-item-4-distinguer-un-fleet-yaml-illisible-d-un"
+    epic: 1
+    action: "Distinguer un fleet.yaml illisible d'un fichier vide dans reloadFleet()"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
+  - id: "epic-1-retro-item-5-lister-les-composants-réutilisables-dans"
+    epic: 1
+    action: "Lister les composants réutilisables dans un artefact que les stories
+      suivantes lisent"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
+  - id: "epic-1-retro-item-6-traiter-le-lancement-de-l-application-co"
+    epic: 1
+    action: "Traiter le lancement de l'application comme une étape de vérification
+      à part entière"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
+  - id: "epic-1-retro-item-7-ne-jamais-faire-reposer-un-critère-de-sp"
+    epic: 1
+    action: "Ne jamais faire reposer un critère de spec sur un motif grep seul"
+    owner: "Vincent"
+    status: open
+    ref: "docs/build/epic-1-retro-2026-08-24.md"
