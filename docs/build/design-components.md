@@ -49,6 +49,32 @@ Two things to know before reusing it:
   selected appearance when a folded item is the active one; without it, selecting a folded
   tab leaves the bar showing no selection at all — worse than the overflow it replaced.
 
+## Looking at a component before calling it done
+
+`swift test` does not compile `App/Sources`; the verify gate compiles it without looking at
+it. Seven of the epic 1 fixes came from simply running the app — on code that 225 green tests
+and a `BUILD SUCCEEDED` declared sound (retrospective action item 6).
+
+Running the whole app takes a human: it is an `LSUIElement` whose window opens from the menu
+bar, and clicking a `MenuBarExtra` programmatically is not reliable. So mount the component
+on its own:
+
+```
+./Scripts/render-probe/run.sh 1040 /tmp/wide.png
+./Scripts/render-probe/run.sh 900  /tmp/narrow.png   # the spec's minimum width
+```
+
+It compiles the real `Theme` and `DesignComponents` against the SwiftPM build, mounts the
+view in a real `NSWindow`, screencaptures itself and exits. Swap the `Probe` view in
+`Scripts/render-probe/main.swift` for whatever you need to see; the rest is plumbing.
+
+**Always check the narrow width too.** `OverflowRow` renders all eight tabs at 1040 and folds
+two of them at 900 — the two widths disagree, and only one of them is the window's minimum.
+
+This does not replace launching the app. It catches what a component does on its own; it
+says nothing about how it sits inside the window, which is where the epic 1 banner-clipping
+defect lived.
+
 ## Where the pure logic lives
 
 Anything testable belongs in `Sources/HomePortKit/`, not in a view: `MachineBlock`,
