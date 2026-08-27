@@ -12,6 +12,12 @@ final class FleetModel: ObservableObject {
     @Published var fleetLoadError: String?
     @Published var statuses: [String: MachineStatus] = [:]
     @Published var latestTag: String?
+    /// The latest tagged release's notes (GitHub's release body), fetched alongside
+    /// `latestTag` in the same cycle — the Updates tab's only source for them, no second
+    /// `ReleaseService` call. A failed fetch leaves both this and `latestTag` at their
+    /// previous value; a successful one always overwrites this with the just-fetched
+    /// release's notes, nil included, so a release published without notes clears it.
+    @Published var latestReleaseNotes: String?
     @Published var refreshing = false
     /// The in-flight action per machine — what banner, buttons and menubar all observe.
     /// One entry per machine at most: the kit's inter-process lock refuses the rest, this
@@ -190,7 +196,7 @@ final class FleetModel: ObservableObject {
         let targets = machines
         let factory = makeManager
         Task.detached {
-            let latest = try? factory { _ in }.releases.latest().tag
+            let latest = try? factory { _ in }.releases.latest()
             var results = [String: MachineStatus]()
             await withTaskGroup(of: (String, MachineStatus?).self) { group in
                 for machine in targets {
@@ -210,7 +216,10 @@ final class FleetModel: ObservableObject {
                         self.lastSeenAt[name] = Date()
                     }
                 }
-                if let latest { self.latestTag = latest }
+                if let latest {
+                    self.latestTag = latest.tag
+                    self.latestReleaseNotes = latest.notes
+                }
                 self.refreshing = false
             }
         }

@@ -26,6 +26,32 @@ final class ReleaseServiceTests: XCTestCase {
         XCTAssertEqual(releases[0].publishedAt, "2026-08-18T10:00:00Z")
     }
 
+    func testListParsesReleaseNotes() throws {
+        mock.stub(matching: "/releases",
+                  stdout: #"[{"tag_name":"v0.4.0","published_at":"2026-08-18T10:00:00Z","body":"Fixed a bug.\nAdded a thing."}]"#)
+        XCTAssertEqual(try service.list()[0].notes, "Fixed a bug.\nAdded a thing.")
+    }
+
+    func testListHandlesNullReleaseNotes() throws {
+        mock.stub(matching: "/releases",
+                  stdout: #"[{"tag_name":"v0.4.0","published_at":null,"body":null}]"#)
+        XCTAssertNil(try service.list()[0].notes)
+    }
+
+    func testListHandlesMissingReleaseNotesField() throws {
+        // Older or malformed API payloads may omit `body` entirely rather than null it —
+        // the optional must decode as absent, not throw.
+        mock.stub(matching: "/releases",
+                  stdout: #"[{"tag_name":"v0.4.0","published_at":null}]"#)
+        XCTAssertNil(try service.list()[0].notes)
+    }
+
+    func testListFallbackTagsHaveNoNotes() throws {
+        mock.stub(matching: "/releases", stdout: "[]")
+        mock.stub(matching: "/tags", stdout: #"[{"name":"v0.4.0"}]"#)
+        XCTAssertNil(try service.list()[0].notes)
+    }
+
     func testListFallsBackToTags() throws {
         mock.stub(matching: "/releases", stdout: "[]")
         mock.stub(matching: "/tags", stdout: #"[{"name":"v0.4.0"},{"name":"v0.3.0"}]"#)

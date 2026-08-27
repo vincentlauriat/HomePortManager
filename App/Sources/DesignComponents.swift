@@ -441,6 +441,68 @@ struct ToastView: View {
     }
 }
 
+// MARK: - Last action report
+
+/// A last action's persistent focus (a toast would vanish): the fact in the app's words,
+/// the remedy being the report text itself — machine content, mono, selectable. The
+/// headline follows the report's kind: a doctor that succeeded while finding failing checks
+/// must not be announced as a failed action.
+///
+/// Shared by every tab that can trigger `FleetModel.run` (Summary, Updates, …): a failure
+/// must surface the same way wherever it was triggered from, not just on Summary — one box,
+/// not one drifting copy per tab.
+struct LastActionErrorView: View {
+    let report: FleetModel.LastReport
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            Text(report.kind == .failure ? "Last action failed" : "Last action reported problems")
+                .styled(Theme.bodyStrong)
+                .foregroundStyle(report.kind == .failure ? Theme.semanticCritical : Theme.semanticWarning)
+            Text(verbatim: report.message)
+                .styled(Theme.data)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(Theme.data.lineSpacing)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Rounded.md)
+                .stroke((report.kind == .failure ? Theme.semanticCritical : Theme.semanticWarning).opacity(0.25), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Stale data notice
+
+/// The unreachable case is guiding, never an error page: whichever tab shows it keeps the
+/// last known values on screen and offers the retry, rather than blanking out.
+///
+/// Shared by every tab that renders data through `FleetModel.displayStatus(for:)` (Summary,
+/// Updates, …): the wording and the `refreshing` guard on Retry must not drift tab to tab.
+struct StaleDataNotice: View {
+    @ObservedObject var model: FleetModel
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            Text("Unreachable — showing the last known data.")
+                .styled(Theme.body)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(Theme.body.lineSpacing)
+            Button { model.refresh() } label: { Text("Retry") }
+                .buttonStyle(PillButtonStyle(kind: .secondary))
+                .disabled(model.refreshing)
+                .accessibilityLabel(Text("Retry reaching the machine"))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+    }
+}
+
 // MARK: - Data table
 
 struct DataColumn<Row>: Identifiable {

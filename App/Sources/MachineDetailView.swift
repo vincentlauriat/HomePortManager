@@ -33,12 +33,11 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     /// that starts lying is caught the moment the plan changes.
     var pendingMessage: LocalizedStringKey? {
         switch self {
-        case .summary, .dashboard, .logs: return nil
+        case .summary, .dashboard, .logs, .updates: return nil
         case .events: return "The event stream arrives with story 2.1, the v1 API contract and event stream."
         case .metrics: return "Metric charts arrive with story 2.3, historised metrics."
         case .backups: return "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view."
         case .shell: return "The embedded terminal arrives with story 3.4, the embedded shell."
-        case .updates: return "Guided updates arrive with story 3.3, update management."
         }
     }
 
@@ -259,12 +258,23 @@ struct MachineDetailView: View {
         .padding(.vertical, Theme.Spacing.hair)
     }
 
+    /// Every partial-sheet tab is named on purpose, same as `fillsSheet`/`fullTab`: a future
+    /// tab that starts rendering real content here must fail visibly rather than silently
+    /// fall through to the Summary.
     @ViewBuilder
     private var content: some View {
-        if let pending = tab.pendingMessage {
-            EmptyStateView(title: tab.title, message: pending)
-        } else {
+        switch tab {
+        case .summary:
             summary
+        case .updates:
+            UpdatesTabView(model: model, machine: machine, pendingAction: $pendingAction)
+        case .events, .metrics, .backups, .shell:
+            if let pending = tab.pendingMessage {
+                EmptyStateView(title: tab.title, message: pending)
+            }
+        case .dashboard, .logs:
+            // Unreachable: `fillsSheet` routes these two to `fullTab` instead.
+            EmptyView()
         }
     }
 
@@ -273,11 +283,11 @@ struct MachineDetailView: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             if model.statuses[machine.name]?.reachable == false {
-                unreachableNotice
+                StaleDataNotice(model: model)
             }
             actionBar
             if let report = model.lastError[machine.name] {
-                lastActionError(report)
+                LastActionErrorView(report: report)
             }
             VStack(alignment: .leading, spacing: 0) {
                 field("Health") { healthValue }
@@ -338,49 +348,6 @@ struct MachineDetailView: View {
                 TaskStatusPill(status: entry.status)
             },
         ]
-    }
-
-    /// A last action's persistent focus (a toast would vanish): the fact in the app's
-    /// words, the remedy being the report text itself — machine content, mono, selectable.
-    /// The headline follows the report's kind: a doctor that succeeded while finding
-    /// failing checks must not be announced as a failed action.
-    private func lastActionError(_ report: FleetModel.LastReport) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-            Text(report.kind == .failure ? "Last action failed" : "Last action reported problems")
-                .styled(Theme.bodyStrong)
-                .foregroundStyle(report.kind == .failure ? Theme.semanticCritical : Theme.semanticWarning)
-            Text(verbatim: report.message)
-                .styled(Theme.data)
-                .foregroundStyle(Theme.ink)
-                .lineSpacing(Theme.data.lineSpacing)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.Spacing.md)
-        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Rounded.md)
-                .stroke((report.kind == .failure ? Theme.semanticCritical : Theme.semanticWarning).opacity(0.25), lineWidth: 1))
-        .accessibilityElement(children: .combine)
-    }
-
-    /// The unreachable case is guiding, never an error page: the sheet keeps the last known
-    /// values and offers the retry.
-    private var unreachableNotice: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            Text("Unreachable — showing the last known data.")
-                .styled(Theme.body)
-                .foregroundStyle(Theme.ink)
-                .lineSpacing(Theme.body.lineSpacing)
-            Button { model.refresh() } label: { Text("Retry") }
-                .buttonStyle(PillButtonStyle(kind: .secondary))
-                .disabled(model.refreshing)
-                .accessibilityLabel(Text("Retry reaching the machine"))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.Spacing.md)
-        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
     }
 
     @ViewBuilder

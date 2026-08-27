@@ -1061,29 +1061,6 @@
         }
       }
     },
-    "Guided updates arrive with story 3.3, update management.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Guided updates arrive with story 3.3, update management."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les mises à jour guidées arrivent avec la story 3.3, gestion des mises à jour."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "引导式更新将随故事 3.3（更新管理）一起提供。"
-          }
-        }
-      }
-    },
     "Health": {
       "extractionState": "manual",
       "localizations": {
@@ -1981,6 +1958,54 @@
           }
         }
       }
+    },
+    "Release notes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release notes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes de version"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本说明"
+          }
+        }
+      },
+      "comment": "Updates tab section label above the latest tagged release's notes."
+    },
+    "Releases unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releases unavailable"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releases indisponibles"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本列表不可用"
+          }
+        }
+      },
+      "comment": "Updates tab empty-state title when ReleaseService.list()/.latest() failed — the update button is absent in this state, same verdict MenuContent's update button disables on."
     },
     "Reload fleet.yaml": {
       "extractionState": "manual",
@@ -2950,6 +2975,30 @@
         }
       }
     },
+    "Up to date": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up to date"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À jour"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已是最新版本"
+          }
+        }
+      },
+      "comment": "Updates tab badge when the installed version already matches the latest tagged release."
+    },
     "Update": {
       "extractionState": "manual",
       "localizations": {
@@ -3110,6 +3159,30 @@
           }
         }
       }
+    },
+    "Update now": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update now"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour maintenant"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即更新"
+          }
+        }
+      },
+      "comment": "Updates tab's own call to action — distinct from the Summary action bar's noun-titled “Update” pill."
     },
     "Updates": {
       "extractionState": "manual",

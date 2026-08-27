@@ -62,6 +62,21 @@ final class MachineIssueTests: XCTestCase {
                        [.updateAvailable("v0.5.0")])
     }
 
+    // MARK: updateTarget
+
+    /// `machineIssues` calls `updateTarget` for its live verdict; the Updates tab (story 3.3)
+    /// calls it directly against a possibly-stale installed version — the machine may be
+    /// unreachable right now, but the comparison itself does not care.
+    func testUpdateTargetMirrorsTheThreeIssueRules() {
+        XCTAssertEqual(updateTarget(installed: "v0.4.0", latest: "v0.5.0"), "v0.5.0")
+        XCTAssertNil(updateTarget(installed: "v0.5.0", latest: "v0.5.0"),
+                     "already on the latest tag")
+        XCTAssertNil(updateTarget(installed: "unknown", latest: "v0.5.0"),
+                     #""unknown" marks an unreadable version marker, not a version"#)
+        XCTAssertNil(updateTarget(installed: "v0.4.0", latest: nil),
+                     "no known release means nothing to update to")
+    }
+
     // MARK: Severity
 
     func testOnlyHardFailuresAreCritical() {

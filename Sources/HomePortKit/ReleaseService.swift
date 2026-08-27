@@ -3,9 +3,13 @@ import Foundation
 public struct Release: Equatable {
     public let tag: String
     public let publishedAt: String?
-    public init(tag: String, publishedAt: String? = nil) {
+    /// GitHub's release body (its Markdown notes) — nil for a tags-fallback entry (the
+    /// `/tags` endpoint carries no notes) and for a tagged release published without any.
+    public let notes: String?
+    public init(tag: String, publishedAt: String? = nil, notes: String? = nil) {
         self.tag = tag
         self.publishedAt = publishedAt
+        self.notes = notes
     }
 }
 
@@ -26,6 +30,7 @@ public final class ReleaseService {
     private struct APIRelease: Decodable {
         let tag_name: String
         let published_at: String?
+        let body: String?
     }
 
     private struct APITag: Decodable {
@@ -36,7 +41,7 @@ public final class ReleaseService {
         let releasesJSON = try fetch("https://api.github.com/repos/\(repo)/releases")
         let releases = try decode([APIRelease].self, from: releasesJSON)
         if !releases.isEmpty {
-            return releases.map { Release(tag: $0.tag_name, publishedAt: $0.published_at) }
+            return releases.map { Release(tag: $0.tag_name, publishedAt: $0.published_at, notes: $0.body) }
         }
         let tagsJSON = try fetch("https://api.github.com/repos/\(repo)/tags")
         return try decode([APITag].self, from: tagsJSON).map { Release(tag: $0.name) }

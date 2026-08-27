@@ -43,9 +43,19 @@ public func machineIssues(_ status: MachineStatus?, latest: String?) -> [Machine
     var issues: [MachineIssue] = []
     if !status.serviceActive { issues.append(.serviceInactive) }
     if !status.healthzOK { issues.append(.healthzFailing) }
-    if let latest, status.installedVersion != "unknown", status.installedVersion != latest {
-        issues.append(.updateAvailable(latest))
+    if let target = updateTarget(installed: status.installedVersion, latest: latest) {
+        issues.append(.updateAvailable(target))
     }
     if let disk = status.diskUsedPercent, disk >= 90 { issues.append(.diskAlmostFull(disk)) }
     return issues
+}
+
+/// The release an installed version should move to, or nil if it's already current (or
+/// there's nothing to compare against). The single source of truth for "is this version
+/// behind `latest`" — `machineIssues` uses it for the live verdict; a caller reasoning about
+/// a stale/last-known installed version (a machine currently unreachable) calls it directly
+/// instead of re-deriving the same three-way comparison.
+public func updateTarget(installed: String, latest: String?) -> String? {
+    guard let latest, installed != "unknown", installed != latest else { return nil }
+    return latest
 }

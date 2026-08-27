@@ -2,6 +2,10 @@
   summary: App/Sources n'est pas dans le graphe SwiftPM, donc son code n'est couvert par aucun test unitaire.
   evidence: Package.swift ne déclare que HomePortKit, hpm et HomePortKitTests. MachineBlockStore (persistance UserDefaults), FleetModel (écriture des caches lastReachableStatus/lastSeenAt) et Color(hex:) n'ont aucun test possible. La moitié « jamais compilé » est close depuis le 24/08 — le gate de vérification du loop lance xcodegen + xcodebuild après swift test — mais compiler n'est pas tester : la logique de ces trois types reste sans assertion. Piste : l'extraire vers HomePortKit, comme MachineBlock, FleetRow et MachineIssue.
 
+- source_spec: `docs/build/spec-3-3-gestion-des-mises-à-jour.md`
+  summary: 4 des 6 lignes de la matrice I/O de l'onglet Updates (affichage, déclenchement confirmé, machine injoignable, mutation en cours) ne sont couvertes par aucun test automatisé.
+  evidence: Instance nouvelle du trou déjà noté ci-dessus (App/Sources hors bundle de tests) — UpdatesTabView.swift (App/Sources) encode ces branches en SwiftUI pur, vérifiables seulement à l'œil (cf. section Verification de la spec 3.3). Seules 2 lignes ont une couverture automatisée : le calcul « à jour / update disponible » via MachineIssueTests (préexistant) et le champ notes via ReleaseServiceTests (ajouté par cette story). Se referme naturellement si/quand la piste ci-dessus (extraction vers HomePortKit ou bundle de tests App) est traitée.
+
 - source_spec: `docs/build/spec-1-1-fenêtre-centre-de-contrôle-et-tableau-de-bord-global.md`
   summary: RÉSOLU le 24/08 — reloadFleet() avalait les erreurs de parsing YAML. Le modèle conserve désormais l'erreur dans fleetLoadError, et la vue Flotte affiche un état « fleet.yaml est illisible » qui prend le pas sur « aucune machine », avec le chemin du fichier, l'erreur brute et le bouton de rechargement.
   evidence: `machines = (try? FleetStore().load().machines) ?? []` dans App/Sources/FleetModel.swift. L'état vide invite alors à déclarer une première machine à un utilisateur dont le fichier en contient déjà mais ne parse pas, et le bouton de rechargement ne rend ni succès ni échec.
