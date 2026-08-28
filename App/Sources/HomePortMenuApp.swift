@@ -4,6 +4,7 @@ import HomePortKit
 @main
 struct HomePortMenuApp: App {
     @StateObject private var model = FleetModel()
+    @StateObject private var updater = UpdaterViewModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
@@ -12,7 +13,7 @@ struct HomePortMenuApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(model: model)
+            MenuContent(model: model, updater: updater)
         } label: {
             Image(systemName: model.health.symbolName)
         }

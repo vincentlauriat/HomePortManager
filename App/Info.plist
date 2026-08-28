@@ -29,5 +29,11 @@
 	</dict>
 	<key>NSHumanReadableCopyright</key>
 	<string>© Vincent Lauriat — MIT</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/vincentlauriat/HomePortManager/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>17/yjpR7NupWnjCBmxugO7mIJUHLh+wenoHv3naew94=</string>
 </dict>
 </plist>

@@ -15,6 +15,9 @@ DerivedData/
 *.zip
 *.tar.gz
 
+# Sparkle CLI tools (fetched by Scripts/release.sh, not vendored)
+.sparkle-tools/
+
 # macOS
 .DS_Store
 

@@ -4,6 +4,7 @@ import HomePortKit
 
 struct MenuContent: View {
     @ObservedObject var model: FleetModel
+    @ObservedObject var updater: UpdaterViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -54,6 +55,15 @@ struct MenuContent: View {
                 Text("Edit fleet")
             }
             Spacer()
+            // Icon-only, matching MachineRow's compact actions: the footer's text buttons
+            // already crowd the 360pt popover, and Sparkle's own progress window is where a
+            // check actually shows — this only needs to trigger it.
+            Button { updater.checkForUpdates() } label: {
+                Image(systemName: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(.borderless)
+            .help(Text("Check for Updates…"))
+            .accessibilityLabel(Text("Check for Updates…"))
             Button { NSApp.terminate(nil) } label: { Text("Quit") }
         }
         .controlSize(.small)

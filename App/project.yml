@@ -8,6 +8,9 @@ options:
 packages:
   HomePortManager:
     path: ..
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.1
 targets:
   HomePortMenu:
     type: application
@@ -17,15 +20,30 @@ targets:
     dependencies:
       - package: HomePortManager
         product: HomePortKit
+      - package: Sparkle
+        product: Sparkle
     info:
       path: Info.plist
       properties:
         CFBundleName: HomePort Manager
         CFBundleDisplayName: HomePort Manager
         CFBundleShortVersionString: "1.0.0"
+        # A literal, not `$(CURRENT_PROJECT_VERSION)`: xcodegen does not expand build
+        # variables inside `info.properties`, it writes the string as-is into Info.plist.
+        # Sparkle's version comparator reads THIS key, never CFBundleShortVersionString —
+        # forgetting to bump it alongside CURRENT_PROJECT_VERSION on a release ships a build
+        # that reports a higher marketing version but the same CFBundleVersion, so Sparkle
+        # concludes every future release is "not newer" and auto-update silently stops.
         CFBundleVersion: "1"
         LSUIElement: false
         NSHumanReadableCopyright: "© Vincent Lauriat — MIT"
+        # Sparkle 2: feed URL (raw GitHub, no server needed — matches the public repo the
+        # release DMGs are already attached to) and the EdDSA public key generated once for
+        # this app (see Scripts/release.sh header — NEVER regenerate, it orphans every
+        # already-installed copy's auto-update).
+        SUFeedURL: https://raw.githubusercontent.com/vincentlauriat/HomePortManager/main/appcast.xml
+        SUPublicEDKey: "17/yjpR7NupWnjCBmxugO7mIJUHLh+wenoHv3naew94="
+        SUEnableAutomaticChecks: true
         # AD-3: the single App Transport Security exception — plain HTTP on the tailnet,
         # whose hosts (MagicDNS names, 100.x addresses) cannot be enumerated per domain.
         # Shared by the dashboard WKWebView and the future Homeport API client (epic 2);
