@@ -27,14 +27,14 @@ targets:
       properties:
         CFBundleName: HomePort Manager
         CFBundleDisplayName: HomePort Manager
-        CFBundleShortVersionString: "1.0.0"
+        CFBundleShortVersionString: "2.0.0"
         # A literal, not `$(CURRENT_PROJECT_VERSION)`: xcodegen does not expand build
         # variables inside `info.properties`, it writes the string as-is into Info.plist.
         # Sparkle's version comparator reads THIS key, never CFBundleShortVersionString —
         # forgetting to bump it alongside CURRENT_PROJECT_VERSION on a release ships a build
         # that reports a higher marketing version but the same CFBundleVersion, so Sparkle
         # concludes every future release is "not newer" and auto-update silently stops.
-        CFBundleVersion: "1"
+        CFBundleVersion: "2"
         LSUIElement: false
         NSHumanReadableCopyright: "© Vincent Lauriat — MIT"
         # Sparkle 2: feed URL (raw GitHub, no server needed — matches the public repo the
@@ -55,8 +55,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: fr.lauriat.homeport-manager
         PRODUCT_NAME: HomePort Manager
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "2"
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_APP_SANDBOX: NO
         CODE_SIGN_STYLE: Manual
