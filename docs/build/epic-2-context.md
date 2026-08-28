@@ -17,9 +17,16 @@ présenter à l'utilisateur.
 
 ## Stories
 
-- Story 2.1 : Contrat API v1 et flux d'événements
-- Story 2.2 : Notifications critiques et dégradation sans API
+- Story 2.1 : Contrat API v1 (`done`)
+- Story 2.2a : Flux d'événements et onglet Événements (`HomeportAPIClient`, curseur, `hpm events`)
+- Story 2.2b : Notifications critiques et politique de repli (dépend de 2.2a)
 - Story 2.3 : Métriques historisées
+
+> **Amendement 28/08** : l'ex-story 2.2 (« Notifications critiques et dégradation sans API », qui
+> portait aussi le client d'événements replié depuis 2.1) a été scindée en 2.2a/2.2b après un run
+> `bmad-loop` sur le périmètre unifié : la session dev a heurté `session_timeout_min = 90` (90,02 min,
+> 3 compactions) et `max_tokens_per_story = 2 000 000` (3 844 048 consommés) sans committer une seule
+> ligne. Voir `docs/specs/epics.md` Epic 2 pour les ACs détaillées de 2.2a/2.2b.
 
 ## Requirements & Constraints
 
@@ -47,7 +54,7 @@ présenter à l'utilisateur.
 - **Un contrat, un rédacteur.** L'API (capabilities + events + metrics) est un document versionné en
   semver. Sa source de vérité vit dans le repo Homeport ; HomePortManager en conserve une copie
   épinglée sous `docs/api/` et déclare la plage de versions qu'il consomme. La story 2.1 rédige
-  seule la v1 complète ; les stories 2.2 et 2.3 la consomment **sans l'étendre**.
+  seule la v1 complète ; les stories 2.2a, 2.2b et 2.3 la consomment **sans l'étendre**.
 - **`capabilities` est le point d'entrée.** Il annonce la version du contrat, les features
   réellement servies par cette instance, et l'epoch de génération de l'historique. C'est ce qui
   permet de distinguer « cette version ne sait pas faire » de « c'est cassé ».
@@ -95,8 +102,10 @@ présenter à l'utilisateur.
   monotone exploitable, mais il n'est pas exposé et il n'y a ni notion d'epoch ni sévérités
   normalisées. Un historique de métriques existe à une seule échelle et ne couvre pas le disque.
   Les quatre échelles et la notion d'epoch sont donc à construire.
-- **2.1 précède 2.2 et 2.3** : le contrat et le client d'événements sont la fondation. 2.2 ajoute la
-  décision de notifier et la dégradation ; 2.3 consomme le volet métriques du contrat sans le
-  modifier.
+- **2.1 précède 2.2a, qui précède 2.2b, qui précède 2.3** : 2.1 pose le contrat seul. 2.2a construit
+  le client d'événements, le curseur et l'onglet — la fondation exécutable. 2.2b s'y branche pour la
+  décision de notifier et la dégradation (repli menubar single-policy) ; elle ne peut pas être menée
+  avant que 2.2a existe. 2.3 consomme le volet métriques du contrat sans le modifier, indépendante de
+  2.2a/2.2b.
 - **Dépend de l'epic 1** pour le socle `hpm.db` (où vivent curseurs et marqueurs), la fiche machine
   et ses onglets, et la bibliothèque de composants.
