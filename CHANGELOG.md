@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.0.0 — 2026-08-28
+
+The menu bar app becomes a unified control center, with in-app auto-update.
+
+### Control center window (menu bar → "Open the control center", or the Dock icon)
+- Fleet sidebar + per-machine detail view (⌘R refresh, ⌘F filter, ⌘1…⌘8 tabs).
+- Task journal tracking every console-initiated action, behind a shared
+  per-machine mutation lock.
+- Machine actions with confirmation (backup, restart, update), an embedded
+  Homeport dashboard per machine, centralized live-tailed logs, and an
+  Updates tab (installed vs. latest tagged release, Markdown release notes,
+  guided update).
+- Trilingual UI (French, English, Chinese).
+
+### Dock presence
+- The app now also shows in the Dock, with its own icon; clicking it reopens
+  the control center.
+
+### Auto-update (Sparkle)
+- Background update checks plus an on-demand "Check for Updates…" in the
+  menu bar footer. Downloads come from tagged GitHub releases, EdDSA-signed.
+  1.0.0 installs are not on this channel — this one download is manual.
+
 ## v1.0.0 — 2026-08-23
 
 First release. Fleet manager for [Homeport](https://github.com/vincentlauriat/homeport)
