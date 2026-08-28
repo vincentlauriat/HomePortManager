@@ -4,6 +4,11 @@ import HomePortKit
 @main
 struct HomePortMenuApp: App {
     @StateObject private var model = FleetModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    init() {
+        appDelegate.model = model
+    }
 
     var body: some Scene {
         MenuBarExtra {
