@@ -33,8 +33,7 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     /// that starts lying is caught the moment the plan changes.
     var pendingMessage: LocalizedStringKey? {
         switch self {
-        case .summary, .dashboard, .logs: return nil
-        case .events: return "The event stream arrives with story 2.1, the v1 API contract and event stream."
+        case .summary, .dashboard, .logs, .events: return nil
         case .metrics: return "Metric charts arrive with story 2.3, historised metrics."
         case .backups: return "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view."
         case .shell: return "The embedded terminal arrives with story 3.4, the embedded shell."
@@ -50,8 +49,8 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     /// failure it claims to be — a `default:` here would route the new tab away from it.
     var fillsSheet: Bool {
         switch self {
-        case .dashboard, .logs: return true
-        case .summary, .events, .metrics, .backups, .shell, .updates: return false
+        case .dashboard, .logs, .events: return true
+        case .summary, .metrics, .backups, .shell, .updates: return false
         }
     }
 }
@@ -65,6 +64,8 @@ struct MachineDetailView: View {
     /// must survive this view, which `.id(machine.name)` recreates on every machine switch.
     let webCache: DashboardWebCache
     let logSessions: LogSessionStore
+    /// The events feeds, owned by the window for the same reason the two above are.
+    let eventFeeds: EventFeedStore
     let machine: Machine
 
     @State private var tab: MachineTab = .summary
@@ -226,9 +227,12 @@ struct MachineDetailView: View {
                         session: logSessions.entry(for: machine.name), machine: machine)
         case .dashboard:
             DashboardTabView(model: model, cache: webCache, machine: machine)
+        case .events:
+            EventsTabView(model: model, feed: eventFeeds.entry(for: machine.name),
+                          store: eventFeeds, machine: machine, selectTab: { tab = $0 })
         // Every case is named on purpose: a future tab that starts filling the sheet must
         // fail visibly here rather than silently render the dashboard's web view.
-        case .summary, .events, .metrics, .backups, .shell, .updates:
+        case .summary, .metrics, .backups, .shell, .updates:
             EmptyView()
         }
     }

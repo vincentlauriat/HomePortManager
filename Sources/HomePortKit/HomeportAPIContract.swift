@@ -8,7 +8,7 @@
 
 /// A strict `major.minor.patch` version. Parsing rejects anything else — no `v` prefix,
 /// no missing component, no pre-release suffix — because the contract only binds releases.
-public struct SemanticVersion: Equatable, Comparable, CustomStringConvertible {
+public struct SemanticVersion: Equatable, Comparable, CustomStringConvertible, Sendable {
     public let major: Int
     public let minor: Int
     public let patch: Int
@@ -44,7 +44,7 @@ public struct SemanticVersion: Equatable, Comparable, CustomStringConvertible {
 
 /// The verdict on a server's announced contract version. Every case carries what it needs
 /// to be shown to the user without re-deriving anything.
-public enum ContractCompatibility: Equatable {
+public enum ContractCompatibility: Equatable, Sendable {
     case compatible(SemanticVersion)
     /// Older than the floor hpm supports — the machine needs an update.
     case tooOld(SemanticVersion)
@@ -58,6 +58,18 @@ public enum ContractCompatibility: Equatable {
     public var isCompatible: Bool {
         if case .compatible = self { return true }
         return false
+    }
+
+    /// The version met, formatted for display (§8, row 2). One place rather than two: the
+    /// Events tab and `hpm events` both name the version a machine announced, and AD-13
+    /// forbids the two ever describing it differently.
+    public var describedVersion: String {
+        switch self {
+        case .compatible(let version), .tooOld(let version), .tooNew(let version):
+            return version.description
+        case .preRelease(let raw), .unreadable(let raw):
+            return raw.isEmpty ? "(none)" : raw
+        }
     }
 }
 

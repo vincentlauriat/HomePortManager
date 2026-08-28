@@ -18,6 +18,10 @@ let package = Package(
             "HomePortKit",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
-        .testTarget(name: "HomePortKitTests", dependencies: ["HomePortKit"]),
+        // "hpm" too: EventsCmd (Sources/hpm/Commands.swift) is executable-target code with
+        // its own decisions (severity/limit validation, the printed table's shape) that
+        // deserve the same `swift test` coverage as everything else — not left untested
+        // just because it happens to sit in the executable rather than the library.
+        .testTarget(name: "HomePortKitTests", dependencies: ["HomePortKit", "hpm"]),
     ]
 )

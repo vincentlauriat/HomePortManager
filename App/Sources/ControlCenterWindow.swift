@@ -166,6 +166,9 @@ struct ControlCenterView: View {
     /// Same reason, same lifetime: a Logs tab's buffer, filter and follow intent belong to
     /// the window, not to the sheet `.id(machine.name)` throws away on each switch.
     @StateObject private var logSessions = LogSessionStore()
+    /// Same ownership as the two above: an event feed must survive the tab view and the
+    /// machine sheet, both of which SwiftUI recreates.
+    @StateObject private var eventFeeds = EventFeedStore()
 
     var body: some View {
         NavigationSplitView {
@@ -208,6 +211,7 @@ struct ControlCenterView: View {
             // cached state never outlives the declaration, and no ssh outlives fleet.yaml.
             webCache.prune(keeping: names)
             logSessions.prune(keeping: names)
+            eventFeeds.prune(keeping: names)
             if case .machine(let name) = selection, !names.contains(name) {
                 selection = .fleet
             }
@@ -273,7 +277,8 @@ struct ControlCenterView: View {
         case .machine(let name):
             if let machine = model.machines.first(where: { $0.name == name }) {
                 MachineDetailView(model: model, commands: commands, webCache: webCache,
-                                  logSessions: logSessions, machine: machine)
+                                  logSessions: logSessions, eventFeeds: eventFeeds,
+                                  machine: machine)
                     // A fresh tab state per machine, so ⌘3 on one does not stick to the next.
                     .id(machine.name)
             } else {

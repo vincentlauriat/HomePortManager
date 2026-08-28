@@ -53,11 +53,47 @@ final class HistoryStoreTests: XCTestCase {
         _ = try HistoryStore(path: dbPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: dbPath))
         XCTAssertEqual(try rawQuery("PRAGMA journal_mode;"), ["wal"])
-        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["1"])
-        XCTAssertEqual(try rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tasks','locks') ORDER BY name;"),
-                       ["locks", "tasks"])
+        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["2"])
+        XCTAssertEqual(try rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tasks','locks','event_cursors') ORDER BY name;"),
+                       ["event_cursors", "locks", "tasks"])
         XCTAssertEqual(try rawQuery("SELECT name FROM pragma_table_info('locks') ORDER BY cid;"),
                        ["machine", "pid", "acquired_at", "task_id"])
+        XCTAssertEqual(try rawQuery("SELECT name FROM pragma_table_info('event_cursors') ORDER BY cid;"),
+                       ["machine", "epoch", "last_id", "updated_at"])
+    }
+
+    /// A base created by an earlier hpm must *receive* v2, and keep everything v1 put in
+    /// it. The migration used to be a single `guard version < 1 else { return }`: with a
+    /// second step behind it, that early return would have skipped v2 for precisely the
+    /// databases that need it — every one already in use.
+    func testAV1DatabaseIsMigratedToV2WithoutLosingAnything() throws {
+        // A genuine v1 base, written without the code under test.
+        try FileManager.default.createDirectory(atPath: (dbPath as NSString).deletingLastPathComponent,
+                                                withIntermediateDirectories: true)
+        try rawExec("""
+        CREATE TABLE tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, started_at TEXT NOT NULL, finished_at TEXT,
+            machine TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL,
+            output TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE locks (
+            machine TEXT PRIMARY KEY, pid INTEGER NOT NULL, acquired_at TEXT NOT NULL, task_id INTEGER
+        );
+        INSERT INTO tasks (started_at, machine, action, status, output)
+        VALUES ('2026-08-24T10:00:00Z', 'raspcorse', 'backup', 'success', 'done');
+        PRAGMA user_version = 1;
+        """)
+
+        let store = try HistoryStore(path: dbPath)
+
+        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["2"])
+        XCTAssertEqual(try rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name = 'event_cursors';"),
+                       ["event_cursors"])
+        XCTAssertEqual(try store.tasks().map(\.action), ["backup"],
+                       "the v1 journal survives the migration untouched")
+        XCTAssertNil(try store.eventCursor(machine: "raspcorse"))
+        try store.setEventCursor(EventCursor(epoch: "epoch-1", id: 7), machine: "raspcorse")
+        XCTAssertEqual(try store.eventCursor(machine: "raspcorse"), EventCursor(epoch: "epoch-1", id: 7))
     }
 
     func testReopenDoesNotRemigrate() throws {
@@ -66,7 +102,7 @@ final class HistoryStoreTests: XCTestCase {
         try store.finish(id: id, status: .success, output: "done")
 
         let reopened = try HistoryStore(path: dbPath)
-        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["1"])
+        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["2"])
         XCTAssertEqual(try reopened.tasks().count, 1)
     }
 
@@ -275,6 +311,19 @@ final class HistoryStoreTests: XCTestCase {
         XCTAssertEqual(try rawQuery("SELECT COUNT(*) FROM tasks;"), ["10000"])
         // The most recent survive: the newest entry is still there.
         XCTAssertEqual(try store.tasks(limit: 1).first?.action, "task-10004")
+    }
+
+    // MARK: - Events cursor corruption
+
+    /// Same doctrine as the task journal's corrupt rows: a `last_id` that nothing here
+    /// ever writes — negative — is corruption, not "never read", and must surface as an
+    /// error rather than being silently treated as an absent cursor.
+    func testANegativeLastIDSurfacesAsErrorNotAbsence() throws {
+        let store = try HistoryStore(path: dbPath)
+        try store.setEventCursor(EventCursor(epoch: "epoch-1", id: 7), machine: "raspcorse")
+        try rawExec("UPDATE event_cursors SET last_id = -1 WHERE machine = 'raspcorse';")
+
+        XCTAssertThrowsError(try store.eventCursor(machine: "raspcorse"))
     }
 
     // MARK: - Concurrency

@@ -43,10 +43,21 @@ struct MachineCmd: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Remove a machine from the inventory (does not touch the machine).")
         @Argument var name: String
         func run() throws {
-            if try FleetStore().remove(named: name) {
-                print("✓ \(name) removed from inventory")
-            } else {
+            guard try FleetStore().remove(named: name) else {
                 print("'\(name)' was not in the inventory")
+                return
+            }
+            print("✓ \(name) removed from inventory")
+            // Best-effort, like every other hpm.db failure in this file: a base that does
+            // not exist yet has no cursor to drop, and a failure to clear one must not
+            // turn a successful inventory removal into an error.
+            if FileManager.default.fileExists(atPath: expandPath(HistoryStore.defaultPath)) {
+                do {
+                    try HistoryStore().clearEventCursor(machine: name)
+                } catch {
+                    FileHandle.standardError.write(
+                        Data("warning: could not clear the events cursor for '\(name)' — \(error)\n".utf8))
+                }
             }
         }
     }
@@ -369,6 +380,130 @@ struct TasksCmd: ParsableCommand {
             ])
         }
         printTable(rows)
+    }
+}
+
+// MARK: - events
+
+/// The CLI twin of the Events tab (AD-13): the same reader, the same window, the same
+/// severity filter. Nothing here decides anything about events — `HomeportEventsReader`
+/// does, in the kit, where `swift test` covers it.
+struct EventsCmd: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "events", abstract: "Show the events reported by a machine's Homeport.")
+    @Option(name: [.customShort("m"), .customLong("machine")], help: "Only this machine (default: every declared machine).") var machine: String?
+    @Option(name: [.customShort("s"), .customLong("severity")], help: "Only this severity: info, warning or critical.") var severity: String?
+    @Option(name: [.customShort("n"), .customLong("limit")], help: "Number of events per machine (default: \(HomeportEventsReader.defaultLimit)).") var limit: Int?
+
+    func run() async throws {
+        let filter = try Self.parseSeverityOption(severity)
+        let limit = try Self.validateLimitOption(limit)
+
+        let targets: [Machine]
+        if let name = machine {
+            targets = [try FleetStore().machine(named: name)]
+        } else {
+            targets = try FleetStore().load().machines
+            guard !targets.isEmpty else {
+                throw HPMError("no machines declared — start with: hpm machine add <name> --ssh <host>")
+            }
+        }
+
+        // Same doctrine as `tasks`: a listing must never bring hpm.db into existence. The
+        // cursor is optional to a read — without it the window is identical, only the
+        // cross-process reset detection is missing.
+        var cursors: EventCursorStore?
+        if FileManager.default.fileExists(atPath: expandPath(HistoryStore.defaultPath)) {
+            do {
+                cursors = try HistoryStore()
+            } catch {
+                FileHandle.standardError.write(Data("warning: events cursor unavailable — \(error)\n".utf8))
+            }
+        }
+        // `advancingCursor: false`: reading a journal is not marking it read, and a CLI
+        // that consumed the cursor would blind the app's next incremental poll. Moving the
+        // read marker from here waits for story 2.2b, which gives it a second marker to
+        // stay distinct from.
+        let reader = HomeportEventsReader(api: HomeportAPIClient(), cursors: cursors)
+
+        for target in targets {
+            if targets.count > 1 { print("── \(target.name) ──") }
+            switch await reader.read(target, mode: .window, limit: limit, advancingCursor: false) {
+            case .unavailable(let reason):
+                print(unavailableLine(reason, machine: target.name))
+            case .unreachable(let detail):
+                print("\(target.name) is unreachable — \(detail)")
+            case .cancelled:
+                // The command's own task was cancelled (e.g. the process is shutting
+                // down) — no verdict was reached, so nothing is printed for this target
+                // as though one had.
+                continue
+            case .window(let window):
+                if window.cursorWasReset {
+                    print("(the event history of \(target.name) started a new generation — reading it from the beginning)")
+                }
+                report(window.events.filtered(severity: filter), machine: target.name, filter: filter)
+            }
+        }
+    }
+
+    /// A severity outside the three is a typo in the command line, not an unknown value
+    /// served by a machine: the client's "fold to warning" rule is about what a *server*
+    /// sends, and applying it here would silently answer a different question.
+    static func parseSeverityOption(_ raw: String?) throws -> EventSeverity? {
+        guard let raw else { return nil }
+        guard let parsed = EventSeverity(rawValue: raw.lowercased()) else {
+            throw HPMError("--severity must be one of: \(EventSeverity.allCases.map(\.rawValue).joined(separator: ", "))")
+        }
+        return parsed
+    }
+
+    /// Defaults to the reader's own page size, then holds `--limit` to the contract's
+    /// ceiling (§6) — a client-side check, since a server clamp cannot be relied on.
+    static func validateLimitOption(_ raw: Int?) throws -> Int {
+        let limit = raw ?? HomeportEventsReader.defaultLimit
+        guard (1...1000).contains(limit) else {
+            throw HPMError("--limit must be between 1 and 1000 (the contract's ceiling)")
+        }
+        return limit
+    }
+
+    /// Never an error, and never "broken": §8 sends every one of these to an update.
+    private func unavailableLine(_ reason: APIUnavailableReason, machine: String) -> String {
+        switch reason {
+        case .notServed:
+            return "\(machine) does not serve the Homeport v1 API yet — update it to see its events."
+        case .incompatibleContract(let compatibility):
+            return "\(machine) announces API contract \(compatibility.describedVersion), outside the range hpm consumes (\(HomeportAPIContract.supportedRange)) — update it to see its events."
+        case .surfaceNotServed(let surface):
+            return "\(machine) does not serve the '\(surface)' surface of the v1 API — update it to see its events."
+        }
+    }
+
+    /// Newest first, like `hpm tasks` — the window itself is the contract's ascending
+    /// order, reversed once, here, at the point of display.
+    private func report(_ events: [HomeportEvent], machine: String, filter: EventSeverity?) {
+        guard !events.isEmpty else {
+            print(filter.map { "No \($0.rawValue) event on '\(machine)'." } ?? "No event on '\(machine)'.")
+            return
+        }
+        printTable(Self.rows(for: events))
+    }
+
+    /// The table's exact shape, pulled out of `report` so the format can be checked
+    /// without exercising any I/O.
+    static func rows(for events: [HomeportEvent]) -> [[String]] {
+        var rows: [[String]] = [["ID", "DATE", "SEVERITY", "KIND", "SUBJECT", "DETAIL"]]
+        for event in events.reversed() {
+            rows.append([
+                String(event.id),
+                HistoryStore.iso8601String(from: event.timestamp),
+                event.severity.rawValue,
+                event.kind,
+                event.subject,
+                event.detail ?? "-",
+            ])
+        }
+        return rows
     }
 }
 

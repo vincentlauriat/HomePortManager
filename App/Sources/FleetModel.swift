@@ -46,6 +46,12 @@ final class FleetModel: ObservableObject {
     /// pretending "no tasks yet" (the stderr warning is invisible for a menubar app).
     var historyAvailable: Bool { history != nil }
 
+    /// Where the events cursors live (story 2.2a, AD-6). Exposed rather than wrapped: the
+    /// Events tab hands it to `HomeportEventsReader`, and the app is that cursor's only
+    /// writer — `hpm events` reads without moving it. nil when hpm.db could not be opened,
+    /// which costs the reset detection and nothing else.
+    var eventCursors: EventCursorStore? { history }
+
     /// `map`, not `compactMap`: a declared machine with no status yet has to reach
     /// `aggregate` as a `nil` so the icon counts it. Filtering it out is what let the menu
     /// bar show a green check while the fleet table showed CRITICAL for the same machine.

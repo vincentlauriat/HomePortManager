@@ -58,7 +58,7 @@ public final class HistoryStore: @unchecked Sendable {
         case releasedCorrupt(orphanClosed: Bool)
     }
 
-    private static let schemaVersion: Int32 = 1
+    private static let schemaVersion: Int32 = 2
     /// A lock older than this is stale even if its holder still runs (AD-12): the arbiter
     /// against a recycled PID and against a wedged action holding a machine hostage.
     public static let lockTTL: TimeInterval = 30 * 60
@@ -464,10 +464,67 @@ public final class HistoryStore: @unchecked Sendable {
         return orphanClosed
     }
 
+    // MARK: - Events cursor
+
+    /// The machine's `(epoch, id)` cursor, or nil when it has never been read. A row whose
+    /// `last_id` is negative — which nothing here writes — is corruption and surfaces as
+    /// an error rather than as "never read", on the same doctrine as the lock rows.
+    public func eventCursor(machine: String) throws -> EventCursor? {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare("SELECT epoch, last_id FROM event_cursors WHERE machine = ?1;")
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        let code = sqlite3_step(statement)
+        guard code == SQLITE_ROW else {
+            guard code == SQLITE_DONE else { throw sqliteError("hpm.db") }
+            return nil
+        }
+        let epoch = column(statement, 0)
+        let lastID = sqlite3_column_int64(statement, 1)
+        guard lastID >= 0 else {
+            throw HPMError("hpm.db: event cursor for \(machine) is unreadable (negative id \(lastID))")
+        }
+        return EventCursor(epoch: epoch, id: lastID)
+    }
+
+    /// Moves the cursor. `INSERT OR REPLACE` rather than an upsert pair: the row is
+    /// wholly owned by the last read, and an epoch change replaces it outright — a cursor
+    /// is never merged with the one it invalidates.
+    public func setEventCursor(_ cursor: EventCursor, machine: String, now: Date = Date()) throws {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare("""
+        INSERT OR REPLACE INTO event_cursors (machine, epoch, last_id, updated_at)
+        VALUES (?1, ?2, ?3, ?4);
+        """)
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        try bind(statement, 2, cursor.epoch)
+        try bind(statement, 3, cursor.id)
+        try bind(statement, 4, Self.iso8601String(from: now))
+        try step(statement)
+    }
+
+    /// Drops a machine's cursor — what `hpm machine remove` and a fleet.yaml deletion
+    /// leave behind otherwise. Absent is not an error: removing twice is idempotent.
+    public func clearEventCursor(machine: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare("DELETE FROM event_cursors WHERE machine = ?1;")
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        try step(statement)
+    }
+
     // MARK: - Schema
 
+    /// Sequential `if`s, not early returns: a base already at v1 must still receive v2.
+    /// An early `guard version < 1 else { return }` would have skipped every later step
+    /// for exactly the databases that need them.
     private func migrate(from version: Int32) throws {
-        guard version < 1 else { return }
+        if version < 1 { try migrateToV1() }
+        if version < 2 { try migrateToV2() }
+    }
+
+    private func migrateToV1() throws {
         // v1: the task journal plus the lock table. The schema is 1.2's and frozen;
         // acquisition, TTL and takeover live in the Locks section above, same v1.
         // `task_id` ties the lock to the task a takeover closes as `interrupted`.
@@ -489,6 +546,23 @@ public final class HistoryStore: @unchecked Sendable {
             task_id INTEGER
         );
         PRAGMA user_version = 1;
+        """)
+    }
+
+    /// v2 (story 2.2a): the events cursor. AD-6 makes this the *only* durable trace the
+    /// Mac keeps of a machine's event history — the events themselves belong to the Pi and
+    /// are never copied here. One row per machine, the `(epoch, id)` couple of §5 plus the
+    /// instant it last moved, which is what makes a stale cursor legible in the database.
+    /// Same shape as `locks`: machine name as primary key, no index (NFR6).
+    private func migrateToV2() throws {
+        try exec("""
+        CREATE TABLE IF NOT EXISTS event_cursors (
+            machine TEXT PRIMARY KEY,
+            epoch TEXT NOT NULL,
+            last_id INTEGER NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        PRAGMA user_version = 2;
         """)
     }
 
