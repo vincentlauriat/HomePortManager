@@ -24,7 +24,7 @@ targets:
         CFBundleDisplayName: HomePort Manager
         CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "1"
-        LSUIElement: true
+        LSUIElement: false
         NSHumanReadableCopyright: "© Vincent Lauriat — MIT"
         # AD-3: the single App Transport Security exception — plain HTTP on the tailnet,
         # whose hosts (MagicDNS names, 100.x addresses) cannot be enumerated per domain.
