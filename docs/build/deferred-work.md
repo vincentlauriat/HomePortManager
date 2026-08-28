@@ -192,3 +192,11 @@ un historique qui regrossit au-delà du curseur avant le sondage suivant.
 le `cp -a` — l'agent qui substitue la base est le seul à savoir qu'il l'a fait. Cela déplace une
 obligation de Homeport vers HomePortManager et engage les deux dépôts, donc une décision de
 conception à trancher, pas un correctif à appliquer.
+
+### DW-20: Unreadable `deferred:` items in spec-2-2a-flux-d-événements-et-onglet-événements.md
+origin: spec-deferred-malformed 851971cb9eb5
+location: n/a
+source_spec: `spec-2-2a-flux-d-événements-et-onglet-événements.md`
+severity: low
+reason: The dev session recorded deferred findings the orchestrator could not parse, so they were NOT filed as entries: item 1: not a mapping (got str); item 2: not a mapping (got str); item 3: not a mapping (got str). Read `spec-2-2a-flux-d-événements-et-onglet-événements.md`'s frontmatter and re-file them by hand.
+status: open
