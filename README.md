@@ -61,15 +61,19 @@ Build a signed, notarized DMG: `./Scripts/release.sh <version>` → `release/Hom
 
 ## Roadmap — unified control center
 
-Planned next (designed, not built yet): a **control center window** opened from the menu bar
-app — fleet dashboard, per-machine tabs (summary, embedded Homeport dashboard, logs, events,
-metrics, backups, shell, updates), a central task journal, scheduled backups that run on the
-Pi itself via systemd timers, and historised metrics served by Homeport's own API. Trilingual
-UI (French, English, Chinese).
+In progress, on `main` but not yet cut into a release: a **control center window** opened from
+the menu bar app — fleet dashboard, per-machine tabs (summary, embedded Homeport dashboard,
+logs, events, metrics, backups, shell, updates), a central task journal, scheduled backups that
+run on the Pi itself via systemd timers, and historised metrics served by Homeport's own API.
+Trilingual UI (French, English, Chinese).
 
-- [ ] Epic 1 — pilot the fleet from a single window
-- [ ] Epic 2 — events and metrics (needs a matching API in the Homeport repo)
-- [ ] Epic 3 — scheduled backups, updates, integrated shell
+- [x] Epic 1 — pilot the fleet from a single window (control center window, task journal,
+      confirmed machine actions, embedded Homeport dashboard, centralized logs)
+- [ ] Epic 2 — events and metrics: v1 API contract shipped and live on a test machine; the
+      event feed client, notifications and historised metric charts are not built yet
+- [ ] Epic 3 — scheduled backups, integrated shell; the Updates tab (installed version vs.
+      latest tagged release, guided update) is built (`feat/3-3-gestion-des-mises-a-jour`,
+      pending review), taken out of order ahead of scheduled backups
 
 ## Design notes
 
