@@ -80,6 +80,21 @@ final class DashboardWebCache: ObservableObject {
             isLoading = false
         }
 
+        /// WebKit commits any response with a body, a 500 included — `didCommit` alone
+        /// cannot tell Homeport's own error page from a real dashboard. Checked here,
+        /// before commit, so a server error is refused instead of cached as loaded.
+        func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
+                     decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+            if navigationResponse.isForMainFrame, isHTTPErrorResponse(navigationResponse.response) {
+                let status = (navigationResponse.response as? HTTPURLResponse)?.statusCode ?? 0
+                isLoading = false
+                loadFailure = "HTTP \(status): \(HTTPURLResponse.localizedString(forStatusCode: status))"
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
+
         /// New-window navigations (`target="_blank"`, `window.open`) never reach
         /// `decidePolicyFor`: without a UI delegate WebKit drops them silently and the
         /// click does nothing. The embedded view has no tabs — hand them to the default
