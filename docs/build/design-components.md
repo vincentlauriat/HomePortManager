@@ -1,6 +1,6 @@
 ---
 purpose: Inventory of the reusable UI components stories 2.x and 3.x must consume rather than redefine.
-updated: 2026-08-24
+updated: 2026-08-29
 source: App/Sources/DesignComponents.swift
 ---
 
@@ -29,6 +29,7 @@ row — an unrecorded component is the next D-1.
 | `ConfirmationSheet` | destructive confirmations | Names the consequence, not just the act |
 | `ToastView` | transient feedback | |
 | `DataTable` / `DataColumn` | any tabular data | |
+| `MetricCard` | one metric series over a window | Eyebrow title, current value, Swift Charts curve. Lives in `MetricsTabView.swift`. **States its own height** — a `Chart` has none, and collapses to zero inside a `ScrollView` |
 | `EmptyStateView` | a tab with nothing yet | **Must name the story that fills it** |
 | `focusRing(_:cornerRadius:onDark:)` | focus on a custom `ButtonStyle` | Custom styles suppress the system ring |
 | `statusReasons(_:)` | rendering `[MachineIssue]` | The single health ladder — never re-derive it |

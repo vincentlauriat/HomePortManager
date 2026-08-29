@@ -530,6 +530,84 @@ struct EventsCmd: AsyncParsableCommand {
     }
 }
 
+// MARK: - metrics
+
+/// The CLI twin of the Metrics tab (AD-13/FR11): the same reader, the same window, the same
+/// numbers. Nothing here decides anything about a metric — `HomeportMetricsReader` and the
+/// value types under it do, in the kit, where `swift test` covers them.
+///
+/// No `HistoryStore` anywhere in this command, unlike `events`: AD-6 keeps hpm.db for the
+/// events cursor and the notification marker, and metrics have neither. There is nothing to
+/// read from it and nothing to write to it.
+struct MetricsCmd: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "metrics", abstract: "Show the health metrics recorded by a machine's Homeport.")
+    @Argument(help: "The machine to read.") var machine: String
+    @Option(name: [.customShort("r"), .customLong("range")], help: "Window to read: \(MetricsRange.allCases.map(\.rawValue).joined(separator: ", ")) (default: \(HomeportMetricsReader.defaultRange.rawValue)).") var range: String?
+
+    func run() async throws {
+        // Parsed before anything else touches the fleet or the network: an unknown range is
+        // a typo on the command line, and it must cost nothing to find out.
+        let range = try Self.parseRangeOption(self.range)
+        let target = try FleetStore().machine(named: machine)
+
+        switch await HomeportMetricsReader(api: HomeportAPIClient()).read(target, range: range) {
+        case .unavailable(let reason):
+            print(unavailableLine(reason, machine: target.name))
+        case .unreachable(let detail):
+            print("\(target.name) is unreachable — \(detail)")
+        case .cancelled:
+            // The command's own task was cancelled — no verdict was reached, so nothing is
+            // printed as though one had been.
+            return
+        case .window(let window):
+            print(Self.header(for: window))
+            printTable(Self.rows(for: window))
+        }
+    }
+
+    /// A range outside the four is a typo, not a value served by a machine: the contract's
+    /// own answer to an unknown range is a 400 (§7), and there is no neighbouring value to
+    /// fall back on. The message is built from the enum so it cannot drift from it.
+    static func parseRangeOption(_ raw: String?) throws -> MetricsRange {
+        guard let raw else { return HomeportMetricsReader.defaultRange }
+        guard let parsed = MetricsRange(rawValue: raw.lowercased()) else {
+            throw HPMError("--range must be one of: \(MetricsRange.allCases.map(\.rawValue).joined(separator: ", "))")
+        }
+        return parsed
+    }
+
+    /// The grid as served, announced before the table unrolls: at 24 h it is 1 440 lines,
+    /// and the header is what makes that volume predictable rather than surprising.
+    static func header(for window: MetricsWindow) -> String {
+        "range \(window.range.rawValue)  step \(window.stepS)s  from \(HistoryStore.iso8601String(from: window.from))  to \(HistoryStore.iso8601String(from: window.to))  points \(window.pointCount)"
+    }
+
+    /// The table's exact shape, pulled out of `run` so the format can be checked without
+    /// exercising any I/O. One line per grid slot — the same content as the curve, which is
+    /// what FR11 asks of a CLI twin; a current/min/max summary would be a *different*
+    /// content. Newest first, like every other table in hpm.
+    static func rows(for window: MetricsWindow) -> [[String]] {
+        var rows: [[String]] = [["DATE", "CPU%", "MEM%", "DISK%", "TEMP°C"]]
+        for index in stride(from: window.pointCount - 1, through: 0, by: -1) {
+            rows.append([HistoryStore.iso8601String(from: window.timestamp(at: index))]
+                + window.series.map { MetricValue.text($0.points[index], absent: "-") })
+        }
+        return rows
+    }
+
+    /// Never an error, and never "broken": §8 sends every one of these to an update.
+    private func unavailableLine(_ reason: APIUnavailableReason, machine: String) -> String {
+        switch reason {
+        case .notServed:
+            return "\(machine) does not serve the Homeport v1 API yet — update it to see its metrics."
+        case .incompatibleContract(let compatibility):
+            return "\(machine) announces API contract \(compatibility.describedVersion), outside the range hpm consumes (\(HomeportAPIContract.supportedRange)) — update it to see its metrics."
+        case .surfaceNotServed(let surface):
+            return "\(machine) does not serve the '\(surface)' surface of the v1 API — update it to see its metrics."
+        }
+    }
+}
+
 // MARK: - unlock
 
 struct UnlockCmd: ParsableCommand {

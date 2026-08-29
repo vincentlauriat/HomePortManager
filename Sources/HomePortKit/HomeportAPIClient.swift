@@ -155,6 +155,206 @@ public enum EventsPageOutcome: Equatable, Sendable {
     case cancelled
 }
 
+// MARK: - The metrics surface (§7)
+
+/// A window a client may ask for (§7). These four values are the whole vocabulary, and the
+/// contract answers an unknown one with a **400** rather than clamping it the way `events`
+/// clamps `limit`: there is no neighbouring range to fall back on.
+public enum MetricsRange: String, Equatable, Sendable, CaseIterable {
+    case h24 = "24h"
+    case d7 = "7d"
+    case d30 = "30d"
+    case y1 = "1y"
+
+    /// A plain-string label, for the CLI and for anything that cannot reach a catalog. The
+    /// app maps the cases to its own `metrics.range.*` keys instead: `HomePortKit` never
+    /// imports SwiftUI, so a `LocalizedStringKey` cannot live here.
+    public var label: String {
+        switch self {
+        case .h24: return "24 h"
+        case .d7: return "7 d"
+        case .d30: return "30 d"
+        case .y1: return "1 y"
+        }
+    }
+
+    /// How an instant is written on the time axis of a card, and how many marks that axis
+    /// may carry.
+    ///
+    /// The automatic style writes a date at full length ("28 août à 16 h"). Four of those
+    /// on the ~260 pt plot a card gets at the window's 900 pt minimum overlap into an
+    /// unreadable run — seen in the render probe, on the real 24 h window of `raspcorse`.
+    /// Each range therefore names the one component that actually varies across it: the
+    /// hour inside a day, the weekday inside a week, the day inside a month, the month
+    /// inside a year. Localised by the caller's locale like any other `FormatStyle`.
+    public var axisDateFormat: Date.FormatStyle {
+        switch self {
+        case .h24: return .dateTime.hour()
+        case .d7: return .dateTime.weekday(.abbreviated)
+        case .d30: return .dateTime.day().month(.abbreviated)
+        case .y1: return .dateTime.month(.abbreviated)
+        }
+    }
+
+    /// Marks a card's time axis may carry. Four is what a 260 pt plot holds without the
+    /// labels touching, once `axisDateFormat` has shortened them.
+    public static let axisMarkCount = 4
+}
+
+/// The four series of the v1 contract, keyed by their wire names (§7).
+///
+/// Exhaustive and deliberately without an `unknown` case: §7 has a v1.0 client ignore a key
+/// it does not know, and a catch-all would turn a series added by a later minor into a
+/// fifth card this version can neither label nor scale.
+public enum MetricKind: String, Equatable, Sendable, CaseIterable {
+    case cpu = "cpu_pct"
+    case memory = "mem_pct"
+    case disk = "disk_pct"
+    case temperature = "temp_c"
+
+    /// Machine content, shown as served — never translated.
+    public var unit: String {
+        switch self {
+        case .cpu, .memory, .disk: return "%"
+        case .temperature: return "°C"
+        }
+    }
+
+    /// The scale a chart pins when the contract fixes one: §7 gives the three percentages a
+    /// 0–100 range and leaves temperature open. Answered here rather than in the view so
+    /// every surface drawing these series answers it the same way.
+    public var scale: ClosedRange<Double>? {
+        switch self {
+        case .cpu, .memory, .disk: return 0...100
+        case .temperature: return nil
+        }
+    }
+}
+
+/// One measured point, carrying the grid index it sits at. The index is what turns back
+/// into an instant through `MetricsWindow.timestamp(at:)` — the served grid and nothing
+/// else (§7).
+public struct MetricPoint: Equatable, Sendable, Identifiable {
+    public let index: Int
+    public let value: Double
+
+    public init(index: Int, value: Double) {
+        self.index = index
+        self.value = value
+    }
+
+    public var id: Int { index }
+}
+
+/// One series of a window: the contract's own array, holes included.
+public struct MetricSeries: Equatable, Sendable {
+    public let kind: MetricKind
+    /// One entry per grid slot. A `nil` is "no measurement" — never a zero, never
+    /// interpolated (§7).
+    public let points: [Double?]
+
+    public init(kind: MetricKind, points: [Double?]) {
+        self.kind = kind
+        self.points = points
+    }
+
+    /// The most recent measurement, or nil when the series holds none at all — §9 forbids
+    /// assuming a series contains one.
+    public var current: Double? { points.last(where: { $0 != nil }) ?? nil }
+
+    public var minimum: Double? { points.compactMap { $0 }.min() }
+    public var maximum: Double? { points.compactMap { $0 }.max() }
+
+    /// The contiguous runs of measured points. Splitting here rather than in the view is
+    /// what keeps a curve from crossing a hole: Swift Charts joins two consecutive
+    /// `LineMark`s whatever was omitted between them, so every run has to carry its own
+    /// `series:` value. Decidable, therefore here and tested (§7: a `null` never
+    /// interpolates — a curve stops there).
+    public var segments: [[MetricPoint]] {
+        var runs: [[MetricPoint]] = []
+        var run: [MetricPoint] = []
+        for (index, value) in points.enumerated() {
+            if let value {
+                run.append(MetricPoint(index: index, value: value))
+            } else if !run.isEmpty {
+                runs.append(run)
+                run = []
+            }
+        }
+        if !run.isEmpty { runs.append(run) }
+        return runs
+    }
+}
+
+/// How a measurement is written, in one place for both surfaces: the current value of a
+/// card and the cell of `hpm metrics` must read identically for the same point (FR11,
+/// AD-13). Unlocalised on purpose — these are machine-produced numbers, rendered like every
+/// other piece of machine content.
+public enum MetricValue {
+    /// What an absent measurement looks like on screen. The CLI passes its own marker: its
+    /// table is padded in ASCII columns, where an em dash reads as a rule.
+    public static let absentMarker = "—"
+
+    public static func text(_ value: Double?, absent: String = MetricValue.absentMarker) -> String {
+        guard let value else { return absent }
+        // Locale-free by construction (`String(format:)` with no locale), so the table, the
+        // card and the tests all read the same digits.
+        return String(format: "%.1f", value)
+    }
+}
+
+/// One `metrics` response (§7), already validated: a value of this type means the served
+/// grid is internally coherent and the four known series are present at its exact length.
+public struct MetricsWindow: Equatable, Sendable {
+    public let epoch: String
+    /// The range **as served** — the grid below belongs to it.
+    public let range: MetricsRange
+    public let stepS: Int
+    /// Included (§7).
+    public let from: Date
+    /// Excluded (§7).
+    public let to: Date
+    public let cpu: MetricSeries
+    public let memory: MetricSeries
+    public let disk: MetricSeries
+    public let temperature: MetricSeries
+
+    public init(epoch: String, range: MetricsRange, stepS: Int, from: Date, to: Date,
+                cpu: MetricSeries, memory: MetricSeries, disk: MetricSeries,
+                temperature: MetricSeries) {
+        self.epoch = epoch
+        self.range = range
+        self.stepS = stepS
+        self.from = from
+        self.to = to
+        self.cpu = cpu
+        self.memory = memory
+        self.disk = disk
+        self.temperature = temperature
+    }
+
+    /// The four series in the one order both surfaces show them in.
+    public var series: [MetricSeries] { [cpu, memory, disk, temperature] }
+
+    /// `(to - from) / step_s`, which the validation already proved every series matches.
+    public var pointCount: Int { cpu.points.count }
+
+    /// §7: the instant of point `i` is `from + i * step_s`, computed from the served grid
+    /// and nothing else. No range-to-step table is hardcoded anywhere in this client.
+    public func timestamp(at index: Int) -> Date {
+        from.addingTimeInterval(TimeInterval(index) * TimeInterval(stepS))
+    }
+}
+
+/// The verdict of one `metrics` call, in the same shapes as the rest of the contract.
+public enum MetricsOutcome: Equatable, Sendable {
+    case window(MetricsWindow)
+    case unavailable(APIUnavailableReason)
+    case unreachable(String)
+    /// Same distinction as `APIAvailability.cancelled`, for the same reason.
+    case cancelled
+}
+
 // MARK: - The seam
 
 /// One HTTP exchange, reduced to what the contract needs. The status code is kept apart
@@ -181,11 +381,22 @@ public protocol HomeportEventsReading: Sendable {
                 limit: Int) async -> EventsPageOutcome
 }
 
+
+/// What `Manager+Metrics` reads through. Kept alongside `HomeportEventsReading` rather than
+/// merged into it: §4 lets an instance serve one surface and not the other, and a single
+/// protocol would make every fake for one carry the other.
+public protocol HomeportMetricsReading: Sendable {
+    func capabilities(of machine: Machine) async -> APIAvailability
+    func metrics(of machine: Machine, range: MetricsRange) async -> MetricsOutcome
+}
+
 // MARK: - The client
 
-public struct HomeportAPIClient: HomeportEventsReading {
+public struct HomeportAPIClient: HomeportEventsReading, HomeportMetricsReading {
     /// The `events` surface name, as it appears in `features` (§4).
     public static let eventsFeature = "events"
+    /// The `metrics` surface name, likewise (§4).
+    public static let metricsFeature = "metrics"
 
     private let fetch: HomeportHTTPFetch
 
@@ -318,6 +529,82 @@ public struct HomeportAPIClient: HomeportEventsReading {
                                hasMore: payload.has_more))
     }
 
+    // MARK: metrics (§7)
+
+    /// The largest number of grid slots this client will materialise. Not a step table in
+    /// disguise — the contract's widest window is 2 016 points — but a guard against a body
+    /// announcing `step_s: 1` over a year, which would have this allocate a billion slots
+    /// for every absent series before anything could reject it.
+    private static let maximumPoints = 100_000
+
+    public func metrics(of machine: Machine, range: MetricsRange) async -> MetricsOutcome {
+        let query = [URLQueryItem(name: "range", value: range.rawValue)]
+        guard let url = Self.endpoint("metrics", on: machine, query: query) else {
+            return .unreachable("no API address can be derived from the ssh target of \(machine.name)")
+        }
+        let reply: HTTPReply
+        do {
+            reply = try await fetch(url)
+        } catch {
+            if Self.isCancellation(error) { return .cancelled }
+            return .unreachable(describe(error))
+        }
+        switch reply.status {
+        case 200:
+            break
+        case 400, 404:
+            // 404 is §8's "announced in `features` but answering 404" — never a breakdown.
+            // 400 joins it rather than falling to `default`: this client only ever sends
+            // the four documented values, so a refusal means the server does not know one
+            // of them. §8 forbids retrying that as-is and points at an update, which is
+            // what `surfaceNotServed` says; `unreachable` would retry it for ever.
+            return .unavailable(.surfaceNotServed(Self.metricsFeature))
+        default:
+            return .unreachable("HTTP \(reply.status)")
+        }
+        guard let payload = try? JSONDecoder().decode(MetricsPayload.self, from: reply.body),
+              let window = Self.window(from: payload) else {
+            // Same disagreement between the announcement and the service as a 404 on an
+            // announced surface, and §8 spends a row saying that is never a breakdown.
+            return .unavailable(.surfaceNotServed(Self.metricsFeature))
+        }
+        return .window(window)
+    }
+
+    /// The grid check of §7 — and it checks **internal coherence only**: `to > from`,
+    /// `step_s > 0`, `(to - from)` an exact multiple of it, and every *known* series exactly
+    /// `(to - from) / step_s` long. Never a comparison against 60/300/3600/86400: the served
+    /// grid is what makes the instants, and the client does not resample.
+    ///
+    /// Returns nil for a body that is not the contract's, which §8 files under "announced
+    /// but discordant" — a surface that is not served, never a failing machine.
+    private static func window(from payload: MetricsPayload) -> MetricsWindow? {
+        guard let range = MetricsRange(rawValue: payload.range),
+              payload.step_s > 0, payload.to > payload.from,
+              (payload.to - payload.from) % Int64(payload.step_s) == 0
+        else { return nil }
+        let count = Int((payload.to - payload.from) / Int64(payload.step_s))
+        guard count > 0, count <= maximumPoints else { return nil }
+
+        // A series absent from the body is exactly one that is entirely null (§7): four
+        // cards always, an empty one rather than a missing one. A series that *is* there
+        // and does not fit the grid is a body that is not the contract's. A key this
+        // version does not know is ignored, and never length-checked.
+        func decoded(_ kind: MetricKind) -> MetricSeries? {
+            let points = payload.series[kind.rawValue] ?? Array(repeating: nil, count: count)
+            guard points.count == count else { return nil }
+            return MetricSeries(kind: kind, points: points)
+        }
+        guard let cpu = decoded(.cpu), let memory = decoded(.memory),
+              let disk = decoded(.disk), let temperature = decoded(.temperature)
+        else { return nil }
+
+        return MetricsWindow(epoch: payload.epoch, range: range, stepS: payload.step_s,
+                             from: Date(timeIntervalSince1970: TimeInterval(payload.from)),
+                             to: Date(timeIntervalSince1970: TimeInterval(payload.to)),
+                             cpu: cpu, memory: memory, disk: disk, temperature: temperature)
+    }
+
     /// `URLError`'s `localizedDescription` alone drops the code, and the code is what makes
     /// two indistinguishable "The request timed out" reports tellable apart in a bug report.
     private func describe(_ error: Error) -> String {
@@ -373,4 +660,17 @@ private struct EventsPayload: Decodable {
                           detail: detail)
         }
     }
+}
+
+/// §7. `step_s` keeps its wire spelling for the same reason `latest_id` does: the contract's
+/// own names are what a reader checks this against.
+private struct MetricsPayload: Decodable {
+    let epoch: String
+    let range: String
+    let step_s: Int
+    let from: Int64
+    let to: Int64
+    /// Decoded as arrays of optionals so a `null` stays an absence and a string — which §7
+    /// forbids — fails the decode instead of being folded into one.
+    let series: [String: [Double?]]
 }

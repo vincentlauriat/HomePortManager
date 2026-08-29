@@ -33,8 +33,7 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     /// that starts lying is caught the moment the plan changes.
     var pendingMessage: LocalizedStringKey? {
         switch self {
-        case .summary, .dashboard, .logs, .events: return nil
-        case .metrics: return "Metric charts arrive with story 2.3, historised metrics."
+        case .summary, .dashboard, .logs, .events, .metrics: return nil
         case .backups: return "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view."
         case .shell: return "The embedded terminal arrives with story 3.4, the embedded shell."
         case .updates: return "Guided updates arrive with story 3.3, update management."
@@ -66,6 +65,9 @@ struct MachineDetailView: View {
     let logSessions: LogSessionStore
     /// The events feeds, owned by the window for the same reason the two above are.
     let eventFeeds: EventFeedStore
+    /// The metrics feeds, likewise: a range picked on a machine must survive the tab
+    /// switch that recreates the view, and an outage must not blank the curves behind it.
+    let metrics: MetricsStore
     let machine: Machine
 
     @State private var tab: MachineTab = .summary
@@ -279,12 +281,27 @@ struct MachineDetailView: View {
         .padding(.vertical, Theme.Spacing.hair)
     }
 
+    /// The tabs that scroll inside the sheet's own `ScrollView`. Switched on `tab` rather
+    /// than falling through to the summary: a tab whose `pendingMessage` becomes nil without
+    /// a case here would render the Summary under its own title, and nothing would fail to
+    /// compile.
     @ViewBuilder
     private var content: some View {
-        if let pending = tab.pendingMessage {
-            EmptyStateView(title: tab.title, message: pending)
-        } else {
+        switch tab {
+        case .metrics:
+            MetricsTabView(feed: metrics.entry(for: machine.name), store: metrics,
+                           machine: machine, goToUpdates: { tab = .updates })
+        case .summary:
             summary
+        case .backups, .shell, .updates:
+            if let pending = tab.pendingMessage {
+                EmptyStateView(title: tab.title, message: pending)
+            }
+        // The three that fill the sheet never reach this branch — `fillsSheet` routes them
+        // to `fullTab` — but they are named rather than defaulted, so a tab that stops
+        // filling the sheet has to answer this question explicitly.
+        case .dashboard, .logs, .events:
+            EmptyView()
         }
     }
 

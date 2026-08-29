@@ -190,6 +190,9 @@ struct ControlCenterView: View {
     /// Same ownership as the two above: an event feed must survive the tab view and the
     /// machine sheet, both of which SwiftUI recreates.
     @StateObject private var eventFeeds = EventFeedStore()
+    /// Same ownership again: a metrics feed holds the range the user picked and the last
+    /// window read, both of which must survive the tab view and the machine sheet.
+    @StateObject private var metrics = MetricsStore()
 
     var body: some View {
         NavigationSplitView {
@@ -239,6 +242,7 @@ struct ControlCenterView: View {
             webCache.prune(keeping: names)
             logSessions.prune(keeping: names)
             eventFeeds.prune(keeping: names)
+            metrics.prune(keeping: names)
             if case .machine(let name) = selection, !names.contains(name) {
                 selection = .fleet
             }
@@ -305,7 +309,7 @@ struct ControlCenterView: View {
             if let machine = model.machines.first(where: { $0.name == name }) {
                 MachineDetailView(model: model, commands: commands, webCache: webCache,
                                   logSessions: logSessions, eventFeeds: eventFeeds,
-                                  machine: machine)
+                                  metrics: metrics, machine: machine)
                     // A fresh tab state per machine, so ⌘3 on one does not stick to the next.
                     .id(machine.name)
             } else {
