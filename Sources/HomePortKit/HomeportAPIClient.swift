@@ -580,10 +580,16 @@ public struct HomeportAPIClient: HomeportEventsReading, HomeportMetricsReading {
     /// but discordant" — a surface that is not served, never a failing machine.
     private static func window(from payload: MetricsPayload) -> MetricsWindow? {
         guard let range = MetricsRange(rawValue: payload.range),
-              payload.step_s > 0, payload.to > payload.from,
-              (payload.to - payload.from) % Int64(payload.step_s) == 0
+              payload.step_s > 0, payload.to > payload.from
         else { return nil }
-        let count = Int((payload.to - payload.from) / Int64(payload.step_s))
+        // A discordant body — one whose `to`/`from` are near Int64's bounds — must not
+        // trap the process. `to > from` above rules out a *negative* span, not an
+        // *overflowing* one: reporting overflow rather than subtracting keeps this in the
+        // same "announced but discordant" bucket as every other malformed payload (§8),
+        // instead of crashing the app and the CLI on a server that misbehaves.
+        let (span, overflowed) = payload.to.subtractingReportingOverflow(payload.from)
+        guard !overflowed, span % Int64(payload.step_s) == 0 else { return nil }
+        let count = Int(span / Int64(payload.step_s))
         guard count > 0, count <= maximumPoints else { return nil }
 
         // A series absent from the body is exactly one that is entirely null (§7): four

@@ -169,6 +169,17 @@ final class HomeportAPIMetricsTests: XCTestCase {
         XCTAssertEqual(reason, .surfaceNotServed("metrics"))
     }
 
+    /// `to - from` on extreme bounds overflows `Int64` and traps the process instead of
+    /// failing — the one path where a discordant body was fatal rather than classified.
+    func testAToFromSpanThatOverflowsInt64IsNotServedNotTrapped() async {
+        let json = """
+        {"epoch": "e", "range": "24h", "step_s": 60, "from": -9223372036854775808, "to": 9223372036854775807,
+         "series": {"cpu_pct": [], "mem_pct": [], "disk_pct": [], "temp_c": []}}
+        """
+        let reason = await unavailable(json)
+        XCTAssertEqual(reason, .surfaceNotServed("metrics"))
+    }
+
     func testAKnownSeriesOfTheWrongLengthIsNotServed() async {
         let json = """
         {"epoch": "e", "range": "24h", "step_s": 60, "from": 0, "to": 240,
