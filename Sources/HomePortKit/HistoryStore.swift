@@ -58,7 +58,7 @@ public final class HistoryStore: @unchecked Sendable {
         case releasedCorrupt(orphanClosed: Bool)
     }
 
-    private static let schemaVersion: Int32 = 2
+    private static let schemaVersion: Int32 = 4
     /// A lock older than this is stale even if its holder still runs (AD-12): the arbiter
     /// against a recycled PID and against a wedged action holding a machine hostage.
     public static let lockTTL: TimeInterval = 30 * 60
@@ -514,14 +514,70 @@ public final class HistoryStore: @unchecked Sendable {
         try step(statement)
     }
 
+    // MARK: - Notification markers
+
+    /// The machine's notification marker `(epoch, notifiedUpTo)` — story 2.2b's second,
+    /// independent position in the same history (AD-6), or nil when nothing has ever been
+    /// notified for it. A row whose `notified_up_to` is negative — which nothing here
+    /// writes — is corruption and surfaces as an error, same doctrine as `eventCursor`.
+    public func notifiedMarker(machine: String) throws -> NotifiedMarker? {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare("SELECT epoch, notified_up_to FROM notified_markers WHERE machine = ?1;")
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        let code = sqlite3_step(statement)
+        guard code == SQLITE_ROW else {
+            guard code == SQLITE_DONE else { throw sqliteError("hpm.db") }
+            return nil
+        }
+        let epoch = column(statement, 0)
+        let notifiedUpTo = sqlite3_column_int64(statement, 1)
+        guard notifiedUpTo >= 0 else {
+            throw HPMError("hpm.db: notified marker for \(machine) is unreadable (negative id \(notifiedUpTo))")
+        }
+        return NotifiedMarker(epoch: epoch, notifiedUpTo: notifiedUpTo)
+    }
+
+    /// Moves the marker. `INSERT OR REPLACE`, same reasoning as `setEventCursor`: the row
+    /// is wholly owned by the last decision, and an epoch change replaces it outright.
+    public func setNotifiedMarker(_ marker: NotifiedMarker, machine: String, now: Date = Date()) throws {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare("""
+        INSERT OR REPLACE INTO notified_markers (machine, epoch, notified_up_to, updated_at)
+        VALUES (?1, ?2, ?3, ?4);
+        """)
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        try bind(statement, 2, marker.epoch)
+        try bind(statement, 3, marker.notifiedUpTo)
+        try bind(statement, 4, Self.iso8601String(from: now))
+        try step(statement)
+    }
+
+    /// Drops a machine's notification marker — what `hpm machine remove` leaves behind
+    /// otherwise, alongside the events cursor. Absent is not an error: idempotent, same as
+    /// `clearEventCursor`.
+    public func clearNotifiedUpTo(machine: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        let statement = try prepare("DELETE FROM notified_markers WHERE machine = ?1;")
+        defer { sqlite3_finalize(statement) }
+        try bind(statement, 1, machine)
+        try step(statement)
+    }
+
     // MARK: - Schema
 
     /// Sequential `if`s, not early returns: a base already at v1 must still receive v2.
     /// An early `guard version < 1 else { return }` would have skipped every later step
     /// for exactly the databases that need them.
+    ///
+    /// No `migrateToV3`: v3 existed only for the duration of an earlier, unpublished
+    /// attempt at this very story (never shipped, so no real base ever sits at v3) — v4
+    /// carries the final shape of the notification marker directly, straight from v2.
     private func migrate(from version: Int32) throws {
         if version < 1 { try migrateToV1() }
         if version < 2 { try migrateToV2() }
+        if version < 4 { try migrateToV4() }
     }
 
     private func migrateToV1() throws {
@@ -563,6 +619,25 @@ public final class HistoryStore: @unchecked Sendable {
             updated_at TEXT NOT NULL
         );
         PRAGMA user_version = 2;
+        """)
+    }
+
+    /// v4 (story 2.2b): the notification marker, `event_cursors`'s sibling and never its
+    /// merge — AD-6 keeps reading and notifying on two independent positions in the same
+    /// history. The `epoch` column is what makes the reset detection self-contained on the
+    /// marker itself: `EventWindow.epoch` is served on every read, whether or not this
+    /// machine's Events tab has ever been opened, unlike `event_cursors`, which only a tab
+    /// visit ever creates (see `Manager+Notifications.swift`). Same shape as `locks` and
+    /// `event_cursors`: machine name as primary key, no index (NFR6).
+    private func migrateToV4() throws {
+        try exec("""
+        CREATE TABLE IF NOT EXISTS notified_markers (
+            machine TEXT PRIMARY KEY,
+            epoch TEXT NOT NULL,
+            notified_up_to INTEGER NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        PRAGMA user_version = 4;
         """)
     }
 

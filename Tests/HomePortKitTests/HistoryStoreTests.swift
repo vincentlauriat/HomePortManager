@@ -53,20 +53,23 @@ final class HistoryStoreTests: XCTestCase {
         _ = try HistoryStore(path: dbPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: dbPath))
         XCTAssertEqual(try rawQuery("PRAGMA journal_mode;"), ["wal"])
-        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["2"])
-        XCTAssertEqual(try rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tasks','locks','event_cursors') ORDER BY name;"),
-                       ["event_cursors", "locks", "tasks"])
+        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["4"])
+        XCTAssertEqual(try rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tasks','locks','event_cursors','notified_markers') ORDER BY name;"),
+                       ["event_cursors", "locks", "notified_markers", "tasks"])
         XCTAssertEqual(try rawQuery("SELECT name FROM pragma_table_info('locks') ORDER BY cid;"),
                        ["machine", "pid", "acquired_at", "task_id"])
         XCTAssertEqual(try rawQuery("SELECT name FROM pragma_table_info('event_cursors') ORDER BY cid;"),
                        ["machine", "epoch", "last_id", "updated_at"])
+        XCTAssertEqual(try rawQuery("SELECT name FROM pragma_table_info('notified_markers') ORDER BY cid;"),
+                       ["machine", "epoch", "notified_up_to", "updated_at"])
     }
 
-    /// A base created by an earlier hpm must *receive* v2, and keep everything v1 put in
-    /// it. The migration used to be a single `guard version < 1 else { return }`: with a
-    /// second step behind it, that early return would have skipped v2 for precisely the
-    /// databases that need it — every one already in use.
-    func testAV1DatabaseIsMigratedToV2WithoutLosingAnything() throws {
+    /// A base created by an earlier hpm must *receive* every later step, and keep
+    /// everything v1 put in it. The migration used to be a single
+    /// `guard version < 1 else { return }`: with steps behind it, that early return would
+    /// have skipped them for precisely the databases that need them — every one already
+    /// in use.
+    func testAV1DatabaseIsMigratedToTheLatestSchemaWithoutLosingAnything() throws {
         // A genuine v1 base, written without the code under test.
         try FileManager.default.createDirectory(atPath: (dbPath as NSString).deletingLastPathComponent,
                                                 withIntermediateDirectories: true)
@@ -86,14 +89,17 @@ final class HistoryStoreTests: XCTestCase {
 
         let store = try HistoryStore(path: dbPath)
 
-        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["2"])
-        XCTAssertEqual(try rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name = 'event_cursors';"),
-                       ["event_cursors"])
+        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["4"])
+        XCTAssertEqual(try rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('event_cursors', 'notified_markers') ORDER BY name;"),
+                       ["event_cursors", "notified_markers"])
         XCTAssertEqual(try store.tasks().map(\.action), ["backup"],
                        "the v1 journal survives the migration untouched")
         XCTAssertNil(try store.eventCursor(machine: "raspcorse"))
         try store.setEventCursor(EventCursor(epoch: "epoch-1", id: 7), machine: "raspcorse")
         XCTAssertEqual(try store.eventCursor(machine: "raspcorse"), EventCursor(epoch: "epoch-1", id: 7))
+        XCTAssertNil(try store.notifiedMarker(machine: "raspcorse"))
+        try store.setNotifiedMarker(NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 7), machine: "raspcorse")
+        XCTAssertEqual(try store.notifiedMarker(machine: "raspcorse"), NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 7))
     }
 
     func testReopenDoesNotRemigrate() throws {
@@ -102,7 +108,7 @@ final class HistoryStoreTests: XCTestCase {
         try store.finish(id: id, status: .success, output: "done")
 
         let reopened = try HistoryStore(path: dbPath)
-        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["2"])
+        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["4"])
         XCTAssertEqual(try reopened.tasks().count, 1)
     }
 

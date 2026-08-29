@@ -44,6 +44,14 @@ enum ControlCenterWindow {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    /// Story 2.2b: routes a clicked critical-event notification to a machine's tab.
+    /// `open(model:)` must run first — this only publishes onto the already-open window's
+    /// `commands`, it never creates the window itself.
+    @MainActor
+    static func navigate(to machine: String, tab: MachineTab) {
+        window?.commands.pendingNavigation = ControlCenterCommands.PendingNavigation(machine: machine, tab: tab)
+    }
 }
 
 /// Keyboard shortcuts are resolved by the window itself. An `LSUIElement` app has no main
@@ -126,6 +134,19 @@ final class ControlCenterCommands: ObservableObject {
     @Published private(set) var signal: Signal?
     private var sequence = 0
 
+    /// A pending "open this machine, this tab" request from a clicked notification
+    /// (story 2.2b) — consumed by whichever view can currently act on it: the split
+    /// view's `selection`, and the machine sheet's own tab. Cleared once applied by the
+    /// sheet, or by the split view when the machine it names is no longer declared: never
+    /// left dangling, since the machines-list `onChange` (`ControlCenterView`) only reacts
+    /// to a *change* of the list, not to a request that happens to name an absent machine.
+    struct PendingNavigation: Equatable {
+        let machine: String
+        let tab: MachineTab
+    }
+
+    @Published var pendingNavigation: PendingNavigation?
+
     /// How many visible views can act on each kind of command. A count rather than a flag:
     /// SwiftUI can show the next view before the previous one disappears, and a flag would
     /// be cleared by the departing view right after the arriving one set it.
@@ -204,6 +225,12 @@ struct ControlCenterView: View {
         .onChange(of: commands.signal) { signal in
             if signal?.command == .refresh { model.refresh() }
         }
+        // Story 2.2b's click-to-navigate: applies immediately if the window already
+        // existed when the request landed (`onAppear` alone would miss it — this view's
+        // `onAppear` only fires once, the window being reused rather than recreated), and
+        // once more here if the request arrives while the window is already showing.
+        .onAppear { applyPendingNavigation() }
+        .onChange(of: commands.pendingNavigation) { _ in applyPendingNavigation() }
         .onChange(of: model.machines.map(\.name)) { names in
             // The selected machine was removed from fleet.yaml: fall back on the fleet
             // rather than keeping a selection that points at nothing. Its dashboard web
@@ -291,5 +318,19 @@ struct ControlCenterView: View {
     private var fleetOverview: some View {
         FleetOverviewView(model: model, commands: commands,
                           select: { selection = .machine($0) })
+    }
+
+    /// Consumes `commands.pendingNavigation` at the selection level: moves to the named
+    /// machine so `MachineDetailView` gets a chance to exist and consume the tab in turn.
+    /// A request naming a machine no longer in `model.machines` (removed from fleet.yaml
+    /// between the notification firing and the click landing) is dropped here rather than
+    /// left for a sheet that will never appear for it.
+    private func applyPendingNavigation() {
+        guard let pending = commands.pendingNavigation else { return }
+        guard model.machines.contains(where: { $0.name == pending.machine }) else {
+            commands.pendingNavigation = nil
+            return
+        }
+        selection = .machine(pending.machine)
     }
 }

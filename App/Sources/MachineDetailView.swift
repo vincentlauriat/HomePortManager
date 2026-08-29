@@ -113,8 +113,14 @@ struct MachineDetailView: View {
         .onAppear {
             commands.handling(.selectTab, true)
             model.reloadTasks()
+            applyPendingNavigation()
         }
         .onDisappear { commands.handling(.selectTab, false) }
+        // Story 2.2b's click-to-navigate, the tab half: `onAppear` catches a fresh sheet
+        // (`.id(machine.name)` just created it for the machine the click named); `onChange`
+        // catches a second click for the *same* machine already on screen, which recreates
+        // nothing and so never re-fires `onAppear`.
+        .onChange(of: commands.pendingNavigation) { _ in applyPendingNavigation() }
         // The UX-DR6 confirmation. `.sheet`'s native scrim is the dimming; ⌘-shortcuts
         // stay routed by `ControlCenterNSWindow.performKeyEquivalent` while it shows.
         .sheet(item: $pendingAction) { action in
@@ -125,6 +131,16 @@ struct MachineDetailView: View {
                 model.run(action, on: machine)
             }
         }
+    }
+
+    /// Consumes `commands.pendingNavigation` at the tab level: only when it names *this*
+    /// machine — a request for another one is left for that other sheet (or the split
+    /// view's selection change) to apply. Clears it once applied, so a request is never
+    /// re-consumed a second time by a later appearance of this same sheet.
+    private func applyPendingNavigation() {
+        guard let pending = commands.pendingNavigation, pending.machine == machine.name else { return }
+        tab = pending.tab
+        commands.pendingNavigation = nil
     }
 
     // MARK: - Actions

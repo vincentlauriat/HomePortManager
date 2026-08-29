@@ -358,7 +358,7 @@ final class LockTests: XCTestCase {
         try store.releaseLock(machine: "raspcorse", pid: 222)
         _ = try store.unlock(machine: "raspcorse")
 
-        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["2"])
+        XCTAssertEqual(try rawQuery("PRAGMA user_version;"), ["4"])
         XCTAssertEqual(try rawQuery("SELECT name FROM pragma_table_info('locks') ORDER BY cid;"),
                        ["machine", "pid", "acquired_at", "task_id"])
     }

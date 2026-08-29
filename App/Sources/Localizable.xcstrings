@@ -47,6 +47,30 @@
         }
       }
     },
+    "%@ — %@ — %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@ — %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@ — %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@ — %@"
+          }
+        }
+      },
+      "comment": "Body of the critical-event notification (story 2.2b): subject, kind, detail (machine content, never translated) — dash-separated, so the format stays identical across languages."
+    },
     "%@: %@ failed": {
       "extractionState": "manual",
       "localizations": {
@@ -69,6 +93,30 @@
           }
         }
       }
+    },
+    "%@: critical event": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: critical event"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ : événement critique"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@：严重事件"
+          }
+        }
+      },
+      "comment": "Title of the macOS notification for a critical event (story 2.2b). %@ is the machine name."
     },
     "A backup of %@ is taken first, then %@ is installed and its service restarts.": {
       "extractionState": "manual",

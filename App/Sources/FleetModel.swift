@@ -52,6 +52,27 @@ final class FleetModel: ObservableObject {
     /// which costs the reset detection and nothing else.
     var eventCursors: EventCursorStore? { history }
 
+    /// Where the notification markers live (story 2.2b, AD-6) — a second, independent
+    /// position in the same history, never merged with `eventCursors`. The background poll
+    /// below is this marker's only writer.
+    var notifiedMarkers: NotifiedMarkerStore? { history }
+
+    /// 45 s, shared with `EventsTabView`'s own poll interval. Lives here rather than on the
+    /// view: a model type must not depend on a view type for its own cadence (Code Map).
+    static let eventsPollInterval: Duration = .seconds(45)
+
+    /// Sticky per machine: `true` once a background poll's `.window` read has succeeded at
+    /// least once, `false` only after an explicit `.unavailable`, unchanged (absent =
+    /// "never observed") on a transient failure (`eventsPolicyAvailability`). `refresh()`
+    /// reads this to gate the SSH `transitions()` policy — single-policy (AD, epic 2): a
+    /// machine on the events policy never also gets a menu-bar transition notification.
+    @Published var eventsAvailable: [String: Bool] = [:]
+
+    /// One client for the whole app's background notification poll — never the Events
+    /// tab's own `EventFeedStore.api`, which belongs to that surface's read cursor only.
+    private let notificationsAPI = HomeportAPIClient()
+    private var notificationsPollTask: Task<Void, Never>?
+
     /// `map`, not `compactMap`: a declared machine with no status yet has to reach
     /// `aggregate` as a `nil` so the icon counts it. Filtering it out is what let the menu
     /// bar show a green check while the fleet table showed CRITICAL for the same machine.
@@ -75,6 +96,7 @@ final class FleetModel: ObservableObject {
                                    runner: runner, history: history, report: report)
         }
         Notifier.requestPermission()
+        Notifier.model = self
         // This init is *the* app startup hook (no AppDelegate; the MenuBarExtra's
         // `.onAppear` only fires when the menu opens), so retention runs here — the app
         // alone purges, the CLI never does. Off the MainActor: SQLite work is blocking.
@@ -94,6 +116,16 @@ final class FleetModel: ObservableObject {
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
+        }
+        // Story 2.2b: independent of the Events tab and of its own poll loop — this one
+        // runs from app launch, machine sheet open or not (Code Map), and never touches
+        // `event_cursors` (AD-6). Polls immediately, then every `eventsPollInterval`.
+        notificationsPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.pollEventsForNotifications()
+                try? await Task.sleep(for: Self.eventsPollInterval)
+            }
         }
     }
 
@@ -207,8 +239,13 @@ final class FleetModel: ObservableObject {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 for (name, status) in results {
-                    for message in transitions(old: self.statuses[name], new: status) {
-                        Notifier.notify(title: "HomePort", body: message)
+                    // Single-policy (epic 2, AD): a machine the background poll has put on
+                    // the events policy never also gets an SSH-transition notification.
+                    // Absent (never observed) keeps today's behaviour — the SSH policy.
+                    if self.eventsAvailable[name] != true {
+                        for message in transitions(old: self.statuses[name], new: status) {
+                            Notifier.notify(title: "HomePort", body: message)
+                        }
                     }
                     self.statuses[name] = status
                     if status.reachable {
@@ -219,6 +256,53 @@ final class FleetModel: ObservableObject {
                 if let latest { self.latestTag = latest }
                 self.refreshing = false
             }
+        }
+    }
+
+    // MARK: - Notification poll (story 2.2b)
+
+    /// One tour of the background poll: every declared machine, sequentially — HTTP is
+    /// already async I/O and NFR6 caps the fleet under 10 machines, so a task group buys
+    /// nothing a plain loop does not already give for free.
+    private func pollEventsForNotifications() async {
+        let reader = HomeportEventsReader(api: notificationsAPI, cursors: nil)
+        for machine in machines {
+            await pollEvents(for: machine, reader: reader)
+        }
+    }
+
+    /// One machine's tour: `.window`, `advancingCursor: false`, `cursors: nil` — the reset
+    /// detection is self-contained on the notified marker's own epoch (Code Map), so this
+    /// poll never needs `event_cursors` and never touches it (AD-6).
+    private func pollEvents(for machine: Machine, reader: HomeportEventsReader) async {
+        let read = await reader.read(machine, mode: .window, advancingCursor: false)
+        // A machine retired from fleet.yaml mid-poll must not leave a stale entry behind
+        // once `reloadFleet()` has already pruned everything else keyed by its name.
+        guard machines.contains(where: { $0.name == machine.name }) else { return }
+        guard let available = eventsPolicyAvailability(for: read) else { return }
+        eventsAvailable[machine.name] = available
+        guard available, case .window(let window) = read else { return }
+
+        // A read failure here (corrupt hpm.db) must surface as a trace, never be
+        // swallowed by `try?` into "never notified" — that would silently re-notify
+        // everything already seen, or worse, silently skip a real reset.
+        let stored: NotifiedMarker?
+        do {
+            stored = try notifiedMarkers?.notifiedMarker(machine: machine.name)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "warning: could not read the notified marker for \(machine.name) — \(error)\n".utf8))
+            return
+        }
+        let decision = notifiableCriticalEvents(in: window, notifiedMarker: stored)
+        for event in decision.toNotify {
+            Notifier.notifyCriticalEvent(machine: machine.name, event: event)
+        }
+        do {
+            try notifiedMarkers?.setNotifiedMarker(decision.newMarker, machine: machine.name, now: Date())
+        } catch {
+            FileHandle.standardError.write(Data(
+                "warning: could not store the notified marker for \(machine.name) — \(error)\n".utf8))
         }
     }
 

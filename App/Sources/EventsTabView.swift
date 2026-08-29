@@ -167,9 +167,10 @@ struct EventsTabView: View {
 
     /// 45 s, inside the 30–60 s the epic fixes. Scoped to this view: `.task` starts when
     /// the tab appears and is cancelled when it goes away, so there is no timer to own and
-    /// nothing polls while the tab is closed. A background poll, if notifications turn out
-    /// to need one, is story 2.2b's decision to make.
-    private static let pollInterval: Duration = .seconds(45)
+    /// nothing polls while the tab is closed — distinct from `FleetModel`'s own background
+    /// poll (story 2.2b), which runs regardless of whether this tab is open and shares the
+    /// same cadence via `FleetModel.eventsPollInterval` rather than a second constant.
+    private static let pollInterval = FleetModel.eventsPollInterval
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {

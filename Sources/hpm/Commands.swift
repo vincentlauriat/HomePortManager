@@ -49,15 +49,38 @@ struct MachineCmd: ParsableCommand {
             }
             print("✓ \(name) removed from inventory")
             // Best-effort, like every other hpm.db failure in this file: a base that does
-            // not exist yet has no cursor to drop, and a failure to clear one must not
+            // not exist yet has no markers to drop, and a failure to clear one must not
             // turn a successful inventory removal into an error.
             if FileManager.default.fileExists(atPath: expandPath(HistoryStore.defaultPath)) {
                 do {
-                    try HistoryStore().clearEventCursor(machine: name)
+                    let store = try HistoryStore()
+                    Self.clearMarkers(for: name, in: store) { message in
+                        FileHandle.standardError.write(Data(message.utf8))
+                    }
                 } catch {
-                    FileHandle.standardError.write(
-                        Data("warning: could not clear the events cursor for '\(name)' — \(error)\n".utf8))
+                    // The name is interpolated once, never adjacent to another single
+                    // quote: a template producing `'\(name)''s markers` reads as a typo,
+                    // not a machine name (2ᵉ passe de revue, patch).
+                    FileHandle.standardError.write(Data(
+                        "warning: could not open hpm.db to clear notified/event markers for '\(name)' — \(error)\n".utf8))
                 }
+            }
+        }
+
+        /// The testable core: clears the events cursor and the notification marker
+        /// independently, so one failing does not mask the other, and each warning names
+        /// the marker that actually failed rather than a generic one that could be wrong
+        /// about which side broke.
+        static func clearMarkers(for name: String, in store: HistoryStore, report: (String) -> Void) {
+            do {
+                try store.clearEventCursor(machine: name)
+            } catch {
+                report("warning: could not clear the events cursor for '\(name)' — \(error)\n")
+            }
+            do {
+                try store.clearNotifiedUpTo(machine: name)
+            } catch {
+                report("warning: could not clear the notified marker for '\(name)' — \(error)\n")
             }
         }
     }
