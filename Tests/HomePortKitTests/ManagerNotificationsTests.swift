@@ -102,6 +102,48 @@ final class ManagerNotificationsTests: XCTestCase {
         XCTAssertEqual(thirdDecision.toNotify.map(\.id), [2])
     }
 
+    // MARK: The marker's advance rule, in the situations it exists for
+
+    /// The rule the doc comment calls load-bearing: the marker lands on `window.latestID`,
+    /// *not* on the greatest id the window actually carries. Trimming to `limit` alone
+    /// cannot tell the two apart — `pull` keeps the *tail*, so the last event kept is the
+    /// newest one and the two values coincide. What separates them is a window whose
+    /// served events stop short of the `latest_id` the server reports for the epoch; only
+    /// then does following the events instead of `latestID` leave the marker behind, and
+    /// re-examine that stretch on every later poll.
+    func testTheMarkerFollowsLatestIDEvenWhenTheServedWindowStopsShortOfIt() {
+        let events = [event(306, .info), event(400, .critical), event(500, .info)]
+        let marker = NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 5)
+        let decision = notifiableCriticalEvents(in: window(latestID: 505, events: events),
+                                                notifiedMarker: marker)
+        XCTAssertEqual(decision.toNotify.map(\.id), [400],
+                       "only the criticals the window actually carries can notify")
+        XCTAssertEqual(decision.newMarker, NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 505),
+                       "the marker follows the server's latestID, not the newest event served")
+    }
+
+    /// The same rule on the re-initialization branch: a marker from another epoch is
+    /// replaced by one at `window.latestID`, not at the newest event the window carried.
+    func testASilentReinitializationAlsoLandsOnLatestID() {
+        let events = [event(1, .critical), event(2, .critical)]
+        let marker = NotifiedMarker(epoch: "epoch-old", notifiedUpTo: 900)
+        let decision = notifiableCriticalEvents(in: window(epoch: "epoch-new", latestID: 42, events: events),
+                                                notifiedMarker: marker)
+        XCTAssertTrue(decision.toNotify.isEmpty)
+        XCTAssertEqual(decision.newMarker, NotifiedMarker(epoch: "epoch-new", notifiedUpTo: 42))
+    }
+
+    /// The `max(...)` guard: inside one epoch the marker never walks backwards, whatever a
+    /// window reports. A server answering with a `latestID` below what this Mac has already
+    /// notified must not make it re-notify that stretch on the next poll.
+    func testTheMarkerNeverRegressesWithinAnEpoch() {
+        let marker = NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 500)
+        let decision = notifiableCriticalEvents(in: window(latestID: 400, events: [event(400, .info)]),
+                                                notifiedMarker: marker)
+        XCTAssertTrue(decision.toNotify.isEmpty)
+        XCTAssertEqual(decision.newMarker, NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 500))
+    }
+
     // MARK: eventsPolicyAvailability — the 4 cases
 
     func testWindowMakesThePolicyAvailable() {
@@ -194,5 +236,48 @@ final class ManagerNotificationsTests: XCTestCase {
         try store.setNotifiedMarker(NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 42), machine: "raspcorse")
         XCTAssertEqual(try store.notifiedMarker(machine: "raspcorse"),
                        NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 42))
+    }
+
+    /// A base left at v3 by the unpublished earlier attempt at this story carries a
+    /// `notified_markers` *without* the `epoch` column. Migrating it must replace that
+    /// shape, not stamp v4 on top of it — otherwise every marker read throws and
+    /// notifications are dead for good on that machine.
+    func testAV3ShapedDatabaseIsRebuiltRatherThanStampedV4() throws {
+        let root = NSTemporaryDirectory() + "hpm-notifications-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let path = root + "/state/hpm/hpm.db"
+
+        try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                withIntermediateDirectories: true)
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(path, &db), SQLITE_OK)
+        let schema = """
+        CREATE TABLE tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, started_at TEXT NOT NULL, finished_at TEXT,
+            machine TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL,
+            output TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE locks (
+            machine TEXT PRIMARY KEY, pid INTEGER NOT NULL, acquired_at TEXT NOT NULL, task_id INTEGER
+        );
+        CREATE TABLE event_cursors (
+            machine TEXT PRIMARY KEY, epoch TEXT NOT NULL, last_id INTEGER NOT NULL, updated_at TEXT NOT NULL
+        );
+        CREATE TABLE notified_markers (
+            machine TEXT PRIMARY KEY, notified_up_to INTEGER NOT NULL, updated_at TEXT NOT NULL
+        );
+        INSERT INTO notified_markers (machine, notified_up_to, updated_at)
+        VALUES ('raspcorse', 99, '2026-08-28T10:00:00Z');
+        PRAGMA user_version = 3;
+        """
+        XCTAssertEqual(sqlite3_exec(db, schema, nil, nil, nil), SQLITE_OK)
+        sqlite3_close_v2(db)
+
+        let store = try HistoryStore(path: path)
+        XCTAssertNil(try store.notifiedMarker(machine: "raspcorse"),
+                     "the v3 row belongs to a shape that never shipped: rebuilt empty, not read")
+        try store.setNotifiedMarker(NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 7), machine: "raspcorse")
+        XCTAssertEqual(try store.notifiedMarker(machine: "raspcorse"),
+                       NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 7))
     }
 }

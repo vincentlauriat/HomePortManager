@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 import HomePortKit
 @testable import hpm
 
@@ -35,5 +36,33 @@ final class MachineCmdRemoveTests: XCTestCase {
         MachineCmd.Remove.clearMarkers(for: "ghost", in: store) { warnings.append($0) }
 
         XCTAssertTrue(warnings.isEmpty)
+    }
+
+    /// The reason `clearMarkers` clears the two independently, in two `do` blocks: one
+    /// failing must not mask the other, and the warning must name the marker that actually
+    /// broke. Dropping `event_cursors` underneath the open store makes the first clear
+    /// throw while the second still has its table — the only asymmetry that tells a
+    /// per-marker message apart from a generic one.
+    func testAFailureOnOneMarkerStillClearsTheOtherAndNamesTheRightOne() throws {
+        let root = NSTemporaryDirectory() + "hpm-remove-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let path = root + "/state/hpm/hpm.db"
+        let store = try HistoryStore(path: path)
+        try store.setNotifiedMarker(NotifiedMarker(epoch: "epoch-1", notifiedUpTo: 10), machine: "raspcorse")
+
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(path, &db), SQLITE_OK)
+        defer { sqlite3_close_v2(db) }
+        XCTAssertEqual(sqlite3_exec(db, "DROP TABLE event_cursors;", nil, nil, nil), SQLITE_OK)
+
+        var warnings: [String] = []
+        MachineCmd.Remove.clearMarkers(for: "raspcorse", in: store) { warnings.append($0) }
+
+        XCTAssertEqual(warnings.count, 1, "only the side that failed reports")
+        XCTAssertTrue(warnings[0].contains("events cursor"),
+                      "the warning names the marker that actually failed, not the other one")
+        XCTAssertFalse(warnings[0].contains("notified marker"))
+        XCTAssertNil(try store.notifiedMarker(machine: "raspcorse"),
+                     "the notification marker is cleared even though the cursor clear threw")
     }
 }

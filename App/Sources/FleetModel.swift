@@ -72,6 +72,8 @@ final class FleetModel: ObservableObject {
     /// tab's own `EventFeedStore.api`, which belongs to that surface's read cursor only.
     private let notificationsAPI = HomeportAPIClient()
     private var notificationsPollTask: Task<Void, Never>?
+    /// One trace, not one every 45 s, when hpm.db turns out to be unavailable.
+    private var notifiedMarkerStoreWarned = false
 
     /// `map`, not `compactMap`: a declared machine with no status yet has to reach
     /// `aggregate` as a `nil` so the icon counts it. Filtering it out is what let the menu
@@ -162,6 +164,12 @@ final class FleetModel: ObservableObject {
         lastReachableStatus = lastReachableStatus.filter { declared.contains($0.key) }
         lastSeenAt = lastSeenAt.filter { declared.contains($0.key) }
         lastError = lastError.filter { declared.contains($0.key) }
+        // Story 2.2b's sticky policy flag is keyed by machine name like the rest: a
+        // re-added machine must be re-observed before its SSH transitions are silenced
+        // again, never inherit an events policy from a previous life. The `guard` in
+        // `pollEvents` below leans on this prune to keep an in-flight poll from putting
+        // the entry back — the two only work as a pair.
+        eventsAvailable = eventsAvailable.filter { declared.contains($0.key) }
     }
 
     /// The rows the global dashboard renders. Pure construction lives in the kit.
@@ -265,6 +273,19 @@ final class FleetModel: ObservableObject {
     /// already async I/O and NFR6 caps the fleet under 10 machines, so a task group buys
     /// nothing a plain loop does not already give for free.
     private func pollEventsForNotifications() async {
+        // No hpm.db means no marker: every tour would re-initialize silently and never
+        // notify anything, while `eventsAvailable` would still switch machines onto the
+        // events policy and silence their SSH transitions — total silence on both
+        // channels. Staying entirely out of the poll keeps them on the SSH policy, which
+        // is the honest fallback. Traced once, not every 45 s.
+        guard notifiedMarkers != nil else {
+            if !notifiedMarkerStoreWarned {
+                notifiedMarkerStoreWarned = true
+                FileHandle.standardError.write(Data(
+                    "warning: hpm.db is unavailable — critical-event notifications are off, machines stay on the SSH-transition policy\n".utf8))
+            }
+            return
+        }
         let reader = HomeportEventsReader(api: notificationsAPI, cursors: nil)
         for machine in machines {
             await pollEvents(for: machine, reader: reader)
@@ -282,6 +303,13 @@ final class FleetModel: ObservableObject {
         guard let available = eventsPolicyAvailability(for: read) else { return }
         eventsAvailable[machine.name] = available
         guard available, case .window(let window) = read else { return }
+        // A double-stale read — the epoch flipped during two consecutive full pulls
+        // (`Manager+Events.swift`) — reports a generation it never managed to read as an
+        // empty history at `latestID` 0. Initializing the marker there would make the
+        // next poll see that whole generation as new and notify it retroactively, which
+        // "jamais rétroactif" forbids. With `cursors: nil` this poll has no stored cursor
+        // to compare against, so `cursorWasReset` can only come from that path here.
+        if window.cursorWasReset, window.events.isEmpty, window.latestID == 0 { return }
 
         // A read failure here (corrupt hpm.db) must surface as a trace, never be
         // swallowed by `try?` into "never notified" — that would silently re-notify
@@ -298,6 +326,9 @@ final class FleetModel: ObservableObject {
         for event in decision.toNotify {
             Notifier.notifyCriticalEvent(machine: machine.name, event: event)
         }
+        // Nothing moved: a quiet machine must not cost one SQLite write per 45 s just to
+        // refresh `updated_at`.
+        guard decision.newMarker != stored else { return }
         do {
             try notifiedMarkers?.setNotifiedMarker(decision.newMarker, machine: machine.name, now: Date())
         } catch {

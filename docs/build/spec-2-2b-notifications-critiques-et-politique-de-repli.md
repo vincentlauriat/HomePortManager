@@ -4,8 +4,8 @@ type: 'feature'
 created: '2026-08-28'
 status: 'done'
 baseline_revision: 'bd1bedf8c4fb61f424fd1cc335f8977e27980729'
-review_loop_iteration: 1
-followup_review_recommended: false
+review_loop_iteration: 0
+followup_review_recommended: true
 context:
   - '{project-root}/docs/build/epic-2-context.md'
   - '{project-root}/docs/api/homeport-api-v1.md'
@@ -26,6 +26,70 @@ deferred:
       App/Sources/FleetModel.swift, App/Sources/Notifier.swift,
       App/Sources/ControlCenterWindow.swift, App/Sources/MachineDetailView.swift
     severity: medium
+  - summary: >-
+      Perte silencieuse sur l'axe volume : la fenêtre est trimée aux `limit` (200)
+      événements les plus récents, mais le marqueur avance quand même à `latestID`.
+    evidence: |-
+      `HomeportEventsReader.pull` fait `Array(events.suffix(limit))` (code de 2.2a,
+      `Manager+Events.swift`, inchangé par cette story) : la tête est jetée. Si plus de
+      200 événements s'accumulent entre deux sondages de 45 s, les `critical` de la
+      tranche jetée ne notifient jamais, et `newMarker` passe au-delà d'eux — ils ne
+      seront plus jamais réexaminés, sans aucune trace. Trouvé indépendamment par
+      intent-alignment, blind-hunter, edge-case-hunter et verification-gap. Cette story
+      ferme la perte silencieuse sur l'axe *epoch* ; celle-ci reste ouverte sur l'axe
+      *volume*. Fermer proprement demande une lecture non trimée (que l'API du reader
+      n'exprime pas) ou un signal de troncature dans `EventWindow` — une décision de
+      conception, pas un correctif.
+    location: >-
+      Sources/HomePortKit/Manager+Events.swift (suffix(limit)),
+      Sources/HomePortKit/Manager+Notifications.swift (notifiableCriticalEvents)
+    severity: medium
+  - summary: >-
+      Le sondage de fond repagine tout l'epoch depuis 0, par machine, toutes les 45 s,
+      sans backoff, gigue, ni cache négatif.
+    evidence: |-
+      `mode: .window` part toujours de 0 et pagine jusqu'à `has_more == false`
+      (`Manager+Events.swift`), plus un appel `capabilities(of:)` par tour et par machine,
+      dès le lancement de l'app et indéfiniment — y compris pour une machine qui répond
+      `.unavailable` en permanence. Les N machines sont sondées en rafale au même instant,
+      en phase avec le sondage propre de `EventsTabView` quand l'onglet est ouvert (deux
+      lectures complètes de la même machine dans la même fenêtre de 45 s). Ce coût est
+      la conséquence directe d'une contrainte de l'intent (`.window`,
+      `advancingCursor: false`, jamais `event_cursors` — AD-6) : le réduire suppose de
+      rouvrir cet arbitrage, pas de corriger le code.
+    location: >-
+      App/Sources/FleetModel.swift (pollEventsForNotifications)
+    severity: medium
+  - summary: >-
+      Le corps de la notification passe par `String(localized:)` mais n'est pas
+      réellement localisable.
+    evidence: |-
+      La clé est `"%@ — %@ — %@"` : trois substitutions, aucun mot traduisible, valeur
+      identique en `en`, `fr` et `zh-Hans`. Elle est aussi générique au point que toute
+      future chaîne à trois substitutions entrerait en collision avec elle sans qu'aucun
+      outil ne le signale, et le repli `event.detail ?? "—"` code en dur un tiret cadratin
+      hors localisation. La contrainte *procédurale* de l'intent (« passent par
+      `String(localized:)` ») est respectée, et le titre porte bien de vrais mots traduits ;
+      la lecture *substantielle* d'UX-DR9 (« localisée ») ne l'est pas. L'intent ne
+      tranche pas entre les deux — arbitrage UX, pas défaut de code.
+    location: >-
+      App/Sources/Notifier.swift (notifyCriticalEvent), App/Sources/Localizable.xcstrings
+    severity: low
+  - summary: >-
+      Un dépôt de notification refusé est compté comme délivré : le marqueur avance
+      quand même.
+    evidence: |-
+      `Notifier.notify` appelle `UNUserNotificationCenter.add(request)` sans handler de
+      complétion, donc une erreur de dépôt est jetée ; `pollEvents` écrit ensuite
+      `setNotifiedMarker` inconditionnellement, si bien qu'un `critical` jamais affiché ne
+      repassera plus. Le statut d'autorisation n'est consulté nulle part non plus
+      (`requestAuthorization { _, _ in }`, préexistant 1.x) : un utilisateur ayant refusé
+      les notifications voit le sondage avancer les marqueurs dans le vide. Corriger
+      suppose de décider ce qu'on fait d'un dépôt échoué (réessayer, ne pas avancer,
+      dégrader) — une décision, pas un correctif mécanique.
+    location: >-
+      App/Sources/Notifier.swift (notify, requestPermission), App/Sources/FleetModel.swift (pollEvents)
+    severity: low
 ---
 
 <intent-contract>
@@ -329,6 +393,56 @@ passe -- le code entier est de toute façon re-dérivé par ce loopback.
     Spec amendée (Code Map + Tasks + Design Notes) ; code reverté au baseline pour re-dérivation
     via step-03 avec la correction incluse.
 
+### 2026-08-29 — Review pass (3)
+
+Première passe de revue exercée contre le code réellement livré : les passes 1 et 2 ont
+toutes deux fini par un revert au baseline, et la re-dérivation (`a729881827eb60bab3cda9d6e1dace35672f585c`)
+a été committée à la main après un timeout de session, avec `status: done` posé sans revue.
+
+- intent_gap: 0
+- bad_spec: 0
+- patch: 7: (high 0, medium 5, low 2)
+- defer: 4: (high 0, medium 2, low 2)
+- reject: 14: (high 0, medium 0, low 14)
+- addressed_findings:
+  - `medium` `patch` `reloadFleet()` élaguait `statuses`/`lastReachableStatus`/`lastSeenAt`/
+    `lastError` mais pas `eventsAvailable`, alors que son propre commentaire affirme « everything
+    keyed by machine name is dropped » et que la garde de `pollEvents` s'appuie explicitement
+    dessus. Une machine retirée de fleet.yaml puis ré-ajoutée héritait de la politique événements
+    d'une vie antérieure — transitions SSH muettes jusqu'au prochain sondage concluant, et
+    définitivement si elle est injoignable (`.unreachable` ne change rien, sticky). Élagage ajouté.
+    Trouvé indépendamment par les trois couches de revue de code.
+  - `medium` `patch` `notifiedMarkers == nil` (hpm.db inouvrable) produisait un silence *total* :
+    la lecture optionnelle rendait `nil` sans lever, la décision se lisait comme un premier pull,
+    l'écriture était un no-op — donc aucune notification événements ne partait jamais, pendant que
+    `eventsAvailable` passait quand même à `true` et taisait les transitions SSH. Le sondage sort
+    désormais du tour avant toute écriture de politique, avec une trace unique, laissant les
+    machines sur le repli SSH.
+  - `medium` `patch` Une lecture double-stale (`Manager+Events.swift` : l'epoch bascule pendant
+    deux pulls complets consécutifs) rend une génération jamais lue sous la forme d'un historique
+    vide à `latestID` 0. Le marqueur s'initialisait donc à 0, et le sondage suivant notifiait
+    rétroactivement tout le `critical` de la nouvelle génération — ce que « jamais rétroactif »
+    interdit explicitement. Garde ajoutée dans `pollEvents` (avec `cursors: nil`, `cursorWasReset`
+    ne peut venir que de ce chemin, c'est donc un signal exact ici).
+  - `medium` `patch` `migrateToV4` faisait `CREATE TABLE IF NOT EXISTS` : une base laissée en v3
+    par la tentative non publiée porte un `notified_markers` sans colonne `epoch`, que le
+    `IF NOT EXISTS` conservait tel quel avant d'estampiller `user_version = 4` dessus — après quoi
+    chaque lecture de marqueur lève et les notifications sont mortes pour de bon. `DROP TABLE IF
+    EXISTS` ajouté (cette étape ne tourne que sur une base sous v4, et aucune version publiée n'a
+    jamais écrit une ligne ici) + test partant d'une vraie base v3.
+  - `medium` `patch` La règle d'avance du marqueur — `window.latestID` plutôt que le plus grand id
+    servi, et la garde `max(...)` contre une régression intra-epoch — était inversable en laissant
+    la suite entièrement verte (démontré par mutation par le reviewer verification-gap : toutes les
+    fixtures faisaient coïncider les deux valeurs). Trois tests discriminants ajoutés, eux-mêmes
+    validés par mutation : la même inversion les fait rougir tous les trois.
+  - `low` `patch` `setNotifiedMarker` était écrit à chaque tour même quand la décision n'avait rien
+    changé — une écriture SQLite par machine toutes les 45 s pour ne rafraîchir qu'`updated_at`.
+    Garde `decision.newMarker != stored` ajoutée.
+  - `low` `patch` La raison d'être annoncée de `MachineCmd.Remove.clearMarkers` (« l'un qui échoue
+    ne masque pas l'autre », et chaque avertissement nomme le bon marqueur) n'était vérifiée par
+    aucun test : les deux cas couverts étaient nominaux et la closure `report` n'était jamais
+    exercée. Test du chemin d'échec asymétrique ajouté.
+
 ## Design Notes
 
 **Pourquoi le sondage de fond ignore le curseur de lecture.** `event_cursors` reste la propriété
@@ -395,3 +509,73 @@ une garantie structurelle plutôt qu'une discipline de lecture-seule à respecte
   Homeport, vérifier la notification macOS et que le clic ouvre la fiche machine sur Événements.
 - Sur une machine sans API événements : vérifier que les transitions SSH notifient toujours
   (repli), et qu'aucune notification événements ne part pour elle.
+
+## Auto Run Result
+
+Status: done
+Blocking condition: aucune
+
+### Changement implémenté
+
+Story 2.2b : notifications des événements `critical` et politique de repli unique. Un second
+marqueur `(epoch, notified_up_to)` par machine dans hpm.db (migration v4), distinct du curseur de
+lecture de l'onglet (AD-6), plus un sondage de fond à 45 s indépendant de l'onglet, décident quels
+`critical` notifient. Une machine dont l'API événements répond relève de la politique événements et
+voit ses transitions SSH taisantes ; sinon elle garde le comportement actuel — jamais les deux.
+
+Cette passe est la **première revue exercée contre le code réellement livré** : les passes 1 et 2
+ont toutes deux fini par un `bad_spec` et un revert au baseline, et la re-dérivation
+(`a729881827eb60bab3cda9d6e1dace35672f585c`) a été committée à la main après un timeout de session,
+avec `status: done` posé sans revue. Le `done` d'origine était de la comptabilité de sauvetage, pas
+une preuve de vérification.
+
+### Fichiers modifiés depuis `bd1bedf8c4fb61f424fd1cc335f8977e27980729`
+
+- `Sources/HomePortKit/Manager+Notifications.swift` — créé : `NotifiedMarker`,
+  `NotifiedMarkerStore`, `notifiableCriticalEvents` et `eventsPolicyAvailability`, toutes pures.
+- `Sources/HomePortKit/HistoryStore.swift` — marqueur `notified_markers` + migration v4 (avec
+  `DROP TABLE IF EXISTS`, ajouté par cette passe).
+- `App/Sources/FleetModel.swift` — sondage de fond 45 s, drapeau sticky `eventsAvailable`, gating
+  des transitions SSH ; élagage de `eventsAvailable`, garde hpm.db absent, garde double-stale et
+  garde d'écriture no-op ajoutés par cette passe.
+- `App/Sources/Notifier.swift` — notification de `critical` localisée + délégué de clic.
+- `App/Sources/ControlCenterWindow.swift`, `MachineDetailView.swift`, `EventsTabView.swift` —
+  navigation « ouvrir machine X, onglet Événements » et cadence partagée.
+- `App/Sources/Localizable.xcstrings` — clés titre/corps (fr, en, zh-Hans).
+- `Sources/hpm/Commands.swift` — `hpm machine remove` efface les deux marqueurs.
+- `Tests/HomePortKitTests/` — `ManagerNotificationsTests.swift` (créé), `MachineCmdRemoveTests.swift`
+  (créé), `HistoryStoreTests.swift` et `LockTests.swift` (schéma v4).
+- `docs/build/deferred-work.md` — DW-21.
+
+### Revue
+
+7 patches appliqués (medium 5, low 2), 4 éléments différés (medium 2, low 2), 14 rejetés,
+0 `intent_gap`, 0 `bad_spec`. Détail dans le Review Triage Log ci-dessus ; les différés sont dans
+le frontmatter `deferred`.
+
+Recommandation de revue de suivi : **true** — aucun patch `high`, mais 3 × 5 medium + 1 × 2 low =
+17, au-delà du seuil de 5.
+
+### Vérification effectuée
+
+- `swift build` — succès, sans avertissement.
+- `swift test` — **316/316**, 0 échec (311 avant cette passe, +5 tests).
+- `swift test --filter ManagerNotificationsTests` — 15/15, les 3 ACs comprises.
+- `bash Scripts/verify-app-build.sh` — **rc 0** (le script ne produit de sortie qu'en échec ;
+  vérifié en le lisant avant de croire son silence).
+- Contrôle par mutation des trois tests ajoutés sur la règle d'avance du marqueur : la mutation que
+  verification-gap avait démontrée verte les fait maintenant rougir tous les trois. Source
+  restaurée et vérifiée (`git diff` vide sur le fichier).
+- Manuel non exécuté : les vérifications sur `raspcorse`/`raspyellow` demandent du matériel réel et
+  un clic — DW-21, même parapluie que DW-17 pour tout `App/Sources`.
+
+### Risques résiduels
+
+- Perte silencieuse sur l'axe volume (plus de 200 événements entre deux sondages) — différé,
+  medium : cette story ferme l'axe epoch, pas celui-là.
+- Coût du sondage : repagination complète de l'epoch par machine toutes les 45 s, sans backoff ni
+  gigue — différé, medium ; conséquence directe d'une contrainte de l'intent (AD-6).
+- Conséquence assumée et documentée dans les Design Notes : une machine injoignable en HTTP *et* en
+  SSH ne notifie plus rien, le temps qu'un des deux canaux réponde.
+- Toute l'orchestration temps réel d'`App/Sources` (timer, délégué, bus de navigation) reste hors
+  du graphe SwiftPM et n'est couverte par aucun test exécutable — DW-21.

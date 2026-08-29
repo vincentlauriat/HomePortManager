@@ -631,6 +631,12 @@ public final class HistoryStore: @unchecked Sendable {
     /// `event_cursors`: machine name as primary key, no index (NFR6).
     private func migrateToV4() throws {
         try exec("""
+        -- The unpublished v3 attempt created a `notified_markers` without the `epoch`
+        -- column. `CREATE TABLE IF NOT EXISTS` alone would leave that wrong shape in
+        -- place and stamp `user_version = 4` on it, after which every marker read throws
+        -- and notifications are dead. Dropping first costs nothing: this step only ever
+        -- runs on a base below v4, and no shipped version ever wrote a row here.
+        DROP TABLE IF EXISTS notified_markers;
         CREATE TABLE IF NOT EXISTS notified_markers (
             machine TEXT PRIMARY KEY,
             epoch TEXT NOT NULL,
