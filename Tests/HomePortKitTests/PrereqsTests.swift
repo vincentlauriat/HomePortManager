@@ -7,6 +7,7 @@ func makeTestManager(mock: MockProcessRunner,
                      backupRoot: String = NSTemporaryDirectory() + "hpm-backups-\(UUID().uuidString)",
                      cacheDir: String = NSTemporaryDirectory() + "hpm-cache-\(UUID().uuidString)",
                      configRoot: String = NSTemporaryDirectory() + "hpm-configs-\(UUID().uuidString)",
+                     jobsRoot: String = NSTemporaryDirectory() + "hpm-jobs-\(UUID().uuidString)",
                      historyPath: String? = nil,
                      report: @escaping Reporter = { _ in }) -> HomeportManager {
     HomeportManager(
@@ -14,6 +15,7 @@ func makeTestManager(mock: MockProcessRunner,
         releases: ReleaseService(runner: mock, cacheDir: cacheDir),
         backupRoot: backupRoot,
         configRoot: configRoot,
+        jobsRoot: jobsRoot,
         runner: mock,
         history: historyPath.flatMap { try? HistoryStore(path: $0) },
         report: report

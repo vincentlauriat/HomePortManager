@@ -200,15 +200,62 @@ struct UpdateCmd: ParsableCommand {
 // MARK: - backup / restore
 
 struct BackupCmd: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "backup", abstract: "Back up config + data (kept on the machine and on this Mac).")
-    @Argument(help: "Machine name (omit with --all).") var machine: String?
-    @Flag(help: "All declared machines.") var all = false
+    static let configuration = CommandConfiguration(
+        commandName: "backup",
+        abstract: "Back up config + data — on demand, or as a scheduled Pi-side job.",
+        subcommands: [Apply.self, Now.self]
+    )
 
-    func run() throws {
-        let targets = try resolveTargets(machine: machine, all: all)
-        try forEachMachine(targets) { target, manager in
-            let path = try manager.backup(on: target)
-            manager.report("✓ \(path)")
+    struct Apply: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Declare (if given options) and deploy the scheduled backup job — units + autonomous root script.")
+        @Argument var machine: String
+        @Option(help: "systemd OnCalendar expression (e.g. daily, *-*-* 03:30:00). Required the first time a job is declared for a machine.") var schedule: String?
+        @Option(help: "Local archives kept on the machine (default: 3). Passing this alone on a machine's first-ever declaration still requires --schedule in the same invocation.") var retention: Int?
+
+        func run() throws {
+            let target = try FleetStore().machine(named: machine)
+            let manager = makeManager()
+            let store = BackupJobStore(root: manager.jobsRoot)
+            let existing = try store.load(for: target.name)
+            if let job = try Self.resolvedJob(schedule: schedule, retention: retention, existing: existing, machineName: target.name) {
+                try store.save(job, for: target.name)
+            }
+            try manager.applyBackupJob(on: target)
+        }
+
+        /// The testable core of `run()`: validates `--schedule`/`--retention` and decides
+        /// whether (and with what content) the store needs writing. nil means neither option
+        /// was passed — a bare `hpm backup apply <m>` just redeploys the already-declared job
+        /// unchanged. Also rejects a `--schedule` that could close a deployed script's
+        /// heredoc early (`HomeportManager.validateBackupJobInputs`) before it ever reaches
+        /// disk, not just before deployment.
+        static func resolvedJob(schedule: String?, retention: Int?, existing: BackupJob?, machineName: String) throws -> BackupJob? {
+            if let schedule, schedule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw HPMError("--schedule cannot be empty")
+            }
+            if let retention, retention < 1 {
+                throw HPMError("--retention must be at least 1")
+            }
+            guard schedule != nil || retention != nil else { return nil }
+            guard let resolvedSchedule = schedule ?? existing?.schedule else {
+                throw HPMError("--schedule is required the first time a job is declared for '\(machineName)'")
+            }
+            try HomeportManager.validateBackupJobInputs(schedule: resolvedSchedule, machineName: machineName)
+            return BackupJob(schedule: resolvedSchedule, retention: retention ?? existing?.retention ?? 3)
+        }
+    }
+
+    struct Now: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Back up config + data right now (kept on the machine and on this Mac).")
+        @Argument(help: "Machine name (omit with --all).") var machine: String?
+        @Flag(help: "All declared machines.") var all = false
+
+        func run() throws {
+            let targets = try resolveTargets(machine: machine, all: all)
+            try forEachMachine(targets) { target, manager in
+                let path = try manager.backup(on: target)
+                manager.report("✓ \(path)")
+            }
         }
     }
 }
@@ -225,7 +272,7 @@ struct RestoreCmd: ParsableCommand {
         let manager = makeManager()
         let chosen = archive ?? manager.latestLocalBackup(for: target.name)
         guard let chosen else {
-            throw HPMError("no local backup found for '\(target.name)' in \(manager.localBackupDir(for: target.name)) — run: hpm backup \(target.name)")
+            throw HPMError("no local backup found for '\(target.name)' in \(manager.localBackupDir(for: target.name)) — run: hpm backup now \(target.name)")
         }
         guard confirm("Restore \((chosen as NSString).lastPathComponent) onto \(target.name)? This replaces its config and data.", assumeYes: assumeYes) else {
             print("Aborted.")
