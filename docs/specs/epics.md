@@ -83,8 +83,8 @@ FR9: Epic 3 — shell intégré
 FR10: Epic 3 — gestion des mises à jour
 FR11: transversal — la commande CLI correspondante est nommée dans les critères d'acceptation de chaque story concernée (jamais une story UI sans sa jumelle CLI)
 
-**Couverture story par story :** FR1 → 1.1 · FR6 → 1.2 · FR2 → 1.3 · FR3 → 1.4 · FR4 → 1.5 · FR5 → 2.1 + 2.2 · FR8 → 2.3 · FR7 → 3.1 + 3.2 · FR10 → 3.3 · FR9 → 3.4 · FR11 → 1.2, 1.3, 1.5, 2.1, 2.3, 3.1, 3.2, 3.3.
-**UX-DR :** UX-DR1/3/4/7 → 1.1 · UX-DR2 → 1.1, 1.3, 1.5, 2.3, 3.2, 3.4 · UX-DR5 → 1.1, 1.4, 2.2, 2.3 · UX-DR6 → 1.3, 3.3 · UX-DR8 → 1.3, 1.5, 3.4 · UX-DR9 → 2.2.
+**Couverture story par story :** FR1 → 1.1 · FR6 → 1.2 · FR2 → 1.3 · FR3 → 1.4 · FR4 → 1.5 · FR5 → 2.1 + 2.2a + 2.2b · FR8 → 2.3 · FR7 → 3.1 + 3.2 · FR10 → 3.3 · FR9 → 3.4 · FR11 → 1.2, 1.3, 1.5, 2.1, 2.2a, 2.3, 3.1, 3.2, 3.3.
+**UX-DR :** UX-DR1/3/4/7 → 1.1 · UX-DR2 → 1.1, 1.3, 1.5, 2.3, 3.2, 3.4 · UX-DR5 → 1.1, 1.4, 2.2a, 2.2b, 2.3 · UX-DR6 → 1.3, 3.3 · UX-DR8 → 1.3, 1.5, 3.4 · UX-DR9 → 2.2b.
 
 ## Epic List
 
@@ -98,8 +98,8 @@ Vincent ouvre le centre de contrôle et administre toute la flotte sans terminal
 ### Epic 2: La flotte se raconte toute seule
 Les événements Homeport remontent sans intervention (notification macOS sur les critiques) et les métriques historisées se consultent en graphes. S'appuie sur l'epic 1 ; dégrade proprement face à un Homeport sans API.
 **FRs covered:** FR5, FR8 (+ FR11)
-**Stories** : 2.1 contrat API v1 + flux d'événements · 2.2 notifications critiques + dégradation · 2.3 métriques historisées.
-**Notes** : 🚧 **jalon bloquant** — l'implémentation serveur de l'API vit dans le repo Homeport (chantier miroir, hors backlog) ; aucune story de cet epic ne se clôt tant que l'API n'est pas live sur une machine de test. Le contrat est rédigeable dès la fin de l'epic 1 : c'est le chemin critique du planning. UX-DR5, UX-DR9.
+**Stories** : 2.1 contrat API v1 · 2.2a flux d'événements + onglet Événements · 2.2b notifications critiques + politique de repli · 2.3 métriques historisées.
+**Notes** : 🚧 **jalon bloquant levé le 28/08** — l'API v1 est mergée et releasée (Homeport v0.8.0), en prod sur raspcorse. Le contrat est né en 2.1 (close). **Story 2.2 scindée en 2.2a/2.2b le 28/08** (`bmad-loop`, timeout de session 90 min + budget de tokens dépassés sur le périmètre unifié, aucun code committé) : 2.2a porte `HomeportAPIClient`, le curseur `(epoch, id)`, l'onglet Événements à 3 états et `hpm events` ; 2.2b (dépend de 2.2a) porte la décision de notifier, `notified_up_to`, le repli menubar single-policy et la navigation clic-notification. UX-DR5, UX-DR9.
 
 ### Epic 3: La flotte s'entretient sans le Mac
 Backups planifiés exécutés sur les Pi Mac éteint (consolidés au réveil), gestion des mises à jour depuis la console, shell intégré en dernier recours. S'appuie sur les epics 1-2 (les jobs se racontent en événements) mais complet en lui-même.
@@ -274,27 +274,59 @@ So that je découvre ce qui s'est passé sur la flotte sans me connecter à chaq
 **When** `hpm events [--machine <nom>] [--severity <niveau>]`
 **Then** les événements s'affichent filtrés (FR11).
 
-### Story 2.2: Notifications critiques et dégradation sans API
+### Story 2.2a: Flux d'événements et onglet Événements
+
+> Scindée le 28/08 depuis l'ex-story 2.2 (`bmad-loop` a dépassé sa limite de session de 90 min et
+> son budget de tokens sur le périmètre unifié client+notifications, sans rien committer). Porte le
+> flux lui-même ; 2.2b porte la décision de notifier par-dessus.
 
 As a administrateur de flotte,
-I want être notifié des incidents graves et voir clairement ce qu'une machine ne sait pas encore fournir,
-So that j'apprends les pannes sans surveiller, et je ne prends jamais une limite de version pour une erreur.
+I want voir dans la console les événements que chaque machine a enregistrés,
+So that je découvre ce qui s'est passé sur la flotte sans me connecter à chaque Pi.
 
 **Acceptance Criteria:**
 
-**Given** un événement `critical` reçu (story 2.1)
-**When** il franchit le marqueur `notified_up_to` de sa machine
-**Then** une notification macOS localisée part ; le clic ouvre la fiche machine sur l'onglet Événements ; les non-critiques n'en produisent pas (UX-DR9)
-**And** la décision de notifier vit dans HomePortKit, et `hpm events` peut lire sans jamais faire perdre une notification — lecture et notification sont deux marqueurs distincts (AD-5).
+**Given** un Homeport exposant l'API
+**When** `HomeportAPIClient` interroge `capabilities` puis `events?since=<curseur>` (30-60 s)
+**Then** les nouveaux événements apparaissent dans l'onglet Événements (sévérité en pill, filtre par sévérité), curseur (epoch, id) persisté par machine dans hpm.db
+**And** après un restore côté Pi (epoch changé, ou `latest_id` inférieur au curseur), le client détecte l'anomalie et repart du début du nouvel epoch, sans erreur ni perte silencieuse (AD-5)
+**And** tant que `has_more` est vrai, la lecture pagine jusqu'à `has_more == false` avant de retenir la fenêtre la plus récente — jamais bloquée sur les événements les plus anciens d'un epoch qui dépasse `limit` (leçon retenue de la 1ʳᵉ tentative, cf. `deferred-work.md`).
 
-**Given** une machine dont Homeport n'a pas l'API (404 ou version hors plage)
+**Given** une machine dont Homeport n'a pas l'API (404 ou version hors plage, ou `events` absent de `features`)
 **When** l'onglet Événements s'ouvre
-**Then** empty-state « Cette version de Homeport ne fournit pas encore les événements » avec pill vers Updates — jamais une erreur (UX-DR5)
-**And** les notifications de cette machine retombent sur les transitions menubar existantes — jamais les deux politiques à la fois pour une même machine.
+**Then** empty-state « Cette version de Homeport ne fournit pas encore les événements » avec pill vers Updates — jamais une erreur (UX-DR5).
 
-**Given** une machine injoignable (erreur réseau)
+**Given** une machine injoignable (erreur réseau ou 5xx)
 **When** l'onglet Événements s'ouvre
 **Then** l'état affiché est « injoignable » (pill critical), distinct de « non disponible », avec les derniers événements connus et « Vu pour la dernière fois à HH:MM ».
+
+**Given** le CLI
+**When** `hpm events [--machine <nom>] [--severity <niveau>]`
+**Then** les événements s'affichent filtrés, avec exactement le même contenu que l'onglet correspondant (AD-13/FR11).
+
+### Story 2.2b: Notifications critiques et politique de repli
+
+> Scindée le 28/08 depuis l'ex-story 2.2 ; dépend de **2.2a** (le flux d'événements et son curseur
+> doivent exister avant que la décision de notifier puisse s'y brancher).
+
+As a administrateur de flotte,
+I want être notifié des incidents graves et ne jamais recevoir deux fois la même alerte,
+So that j'apprends les pannes sans surveiller, et une machine ne relève jamais de deux politiques de notification à la fois.
+
+**Acceptance Criteria:**
+
+**Given** un événement `critical` reçu (2.2a) et un marqueur `notified_up_to` déjà établi pour cette machine
+**When** l'`id` de l'événement dépasse `notified_up_to`
+**Then** une notification macOS localisée part ; le clic ouvre la fiche machine sur l'onglet Événements ; les non-critiques n'en produisent pas (UX-DR9)
+**And** la décision de notifier vit dans HomePortKit, et `hpm events` peut avancer la lecture sans jamais faire perdre une notification — lecture et notification sont deux marqueurs distincts (AD-5).
+
+**Given** une machine sans marqueur `notified_up_to` stocké (premier pull, ou machine qui vient de gagner `events` dans ses `features`)
+**When** ce premier pull s'exécute, même si sa première page contient déjà des événements `critical`
+**Then** `notified_up_to` s'initialise silencieusement au plus grand `id` reçu — aucune notification rétroactive sur un historique déjà peuplé (même doctrine que `transitions(old: nil) -> []`, leçon retenue de la 1ʳᵉ tentative).
+
+**Given** une machine dont Homeport n'a pas l'API, ou dont `events` est absent de `features` (2.2a)
+**When** les notifications de cette machine sont évaluées
+**Then** elles retombent sur les transitions menubar existantes — jamais les deux politiques à la fois pour une même machine.
 
 ### Story 2.3: Métriques historisées
 

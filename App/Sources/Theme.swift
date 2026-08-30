@@ -77,6 +77,12 @@ enum Theme {
         /// detail, `safeAreaInsets.top` reads 0 while the strip covers the first 28 points.
         /// Without this the machine banner's title is drawn under it and reads as clipped.
         static let splitViewTopStrip: CGFloat = 28
+        /// A `Chart` has no intrinsic height: inside the machine sheet's `ScrollView` an
+        /// unconstrained one collapses to nothing, so a metric card states its own.
+        static let metricChartHeight: CGFloat = 120
+        /// The narrowest a metric card may get before its curve stops being readable. Two
+        /// columns at the nominal 1040pt, still two at the 900pt minimum.
+        static let metricCardMinWidth: CGFloat = 280
         static let windowMinWidth: CGFloat = 900
         static let windowMinHeight: CGFloat = 600
     }

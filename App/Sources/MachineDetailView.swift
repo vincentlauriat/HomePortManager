@@ -33,9 +33,7 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     /// that starts lying is caught the moment the plan changes.
     var pendingMessage: LocalizedStringKey? {
         switch self {
-        case .summary, .dashboard, .logs, .updates: return nil
-        case .events: return "The event stream arrives with story 2.1, the v1 API contract and event stream."
-        case .metrics: return "Metric charts arrive with story 2.3, historised metrics."
+        case .summary, .dashboard, .logs, .events, .metrics, .updates: return nil
         case .backups: return "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view."
         case .shell: return "The embedded terminal arrives with story 3.4, the embedded shell."
         }
@@ -49,8 +47,8 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     /// failure it claims to be — a `default:` here would route the new tab away from it.
     var fillsSheet: Bool {
         switch self {
-        case .dashboard, .logs: return true
-        case .summary, .events, .metrics, .backups, .shell, .updates: return false
+        case .dashboard, .logs, .events: return true
+        case .summary, .metrics, .backups, .shell, .updates: return false
         }
     }
 }
@@ -64,6 +62,11 @@ struct MachineDetailView: View {
     /// must survive this view, which `.id(machine.name)` recreates on every machine switch.
     let webCache: DashboardWebCache
     let logSessions: LogSessionStore
+    /// The events feeds, owned by the window for the same reason the two above are.
+    let eventFeeds: EventFeedStore
+    /// The metrics feeds, likewise: a range picked on a machine must survive the tab
+    /// switch that recreates the view, and an outage must not blank the curves behind it.
+    let metrics: MetricsStore
     let machine: Machine
 
     @State private var tab: MachineTab = .summary
@@ -111,8 +114,14 @@ struct MachineDetailView: View {
         .onAppear {
             commands.handling(.selectTab, true)
             model.reloadTasks()
+            applyPendingNavigation()
         }
         .onDisappear { commands.handling(.selectTab, false) }
+        // Story 2.2b's click-to-navigate, the tab half: `onAppear` catches a fresh sheet
+        // (`.id(machine.name)` just created it for the machine the click named); `onChange`
+        // catches a second click for the *same* machine already on screen, which recreates
+        // nothing and so never re-fires `onAppear`.
+        .onChange(of: commands.pendingNavigation) { _ in applyPendingNavigation() }
         // The UX-DR6 confirmation. `.sheet`'s native scrim is the dimming; ⌘-shortcuts
         // stay routed by `ControlCenterNSWindow.performKeyEquivalent` while it shows.
         .sheet(item: $pendingAction) { action in
@@ -123,6 +132,16 @@ struct MachineDetailView: View {
                 model.run(action, on: machine)
             }
         }
+    }
+
+    /// Consumes `commands.pendingNavigation` at the tab level: only when it names *this*
+    /// machine — a request for another one is left for that other sheet (or the split
+    /// view's selection change) to apply. Clears it once applied, so a request is never
+    /// re-consumed a second time by a later appearance of this same sheet.
+    private func applyPendingNavigation() {
+        guard let pending = commands.pendingNavigation, pending.machine == machine.name else { return }
+        tab = pending.tab
+        commands.pendingNavigation = nil
     }
 
     // MARK: - Actions
@@ -225,9 +244,12 @@ struct MachineDetailView: View {
                         session: logSessions.entry(for: machine.name), machine: machine)
         case .dashboard:
             DashboardTabView(model: model, cache: webCache, machine: machine)
+        case .events:
+            EventsTabView(model: model, feed: eventFeeds.entry(for: machine.name),
+                          store: eventFeeds, machine: machine, selectTab: { tab = $0 })
         // Every case is named on purpose: a future tab that starts filling the sheet must
         // fail visibly here rather than silently render the dashboard's web view.
-        case .summary, .events, .metrics, .backups, .shell, .updates:
+        case .summary, .metrics, .backups, .shell, .updates:
             EmptyView()
         }
     }
@@ -258,22 +280,28 @@ struct MachineDetailView: View {
         .padding(.vertical, Theme.Spacing.hair)
     }
 
-    /// Every partial-sheet tab is named on purpose, same as `fillsSheet`/`fullTab`: a future
-    /// tab that starts rendering real content here must fail visibly rather than silently
-    /// fall through to the Summary.
+    /// The tabs that scroll inside the sheet's own `ScrollView`. Switched on `tab` rather
+    /// than falling through to the summary: a tab whose `pendingMessage` becomes nil without
+    /// a case here would render the Summary under its own title, and nothing would fail to
+    /// compile.
     @ViewBuilder
     private var content: some View {
         switch tab {
         case .summary:
             summary
+        case .metrics:
+            MetricsTabView(feed: metrics.entry(for: machine.name), store: metrics,
+                           machine: machine, goToUpdates: { tab = .updates })
         case .updates:
             UpdatesTabView(model: model, machine: machine, pendingAction: $pendingAction)
-        case .events, .metrics, .backups, .shell:
+        case .backups, .shell:
             if let pending = tab.pendingMessage {
                 EmptyStateView(title: tab.title, message: pending)
             }
-        case .dashboard, .logs:
-            // Unreachable: `fillsSheet` routes these two to `fullTab` instead.
+        // The three that fill the sheet never reach this branch — `fillsSheet` routes them
+        // to `fullTab` — but they are named rather than defaulted, so a tab that stops
+        // filling the sheet has to answer this question explicitly.
+        case .dashboard, .logs, .events:
             EmptyView()
         }
     }

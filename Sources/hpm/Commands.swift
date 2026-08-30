@@ -43,10 +43,44 @@ struct MachineCmd: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Remove a machine from the inventory (does not touch the machine).")
         @Argument var name: String
         func run() throws {
-            if try FleetStore().remove(named: name) {
-                print("✓ \(name) removed from inventory")
-            } else {
+            guard try FleetStore().remove(named: name) else {
                 print("'\(name)' was not in the inventory")
+                return
+            }
+            print("✓ \(name) removed from inventory")
+            // Best-effort, like every other hpm.db failure in this file: a base that does
+            // not exist yet has no markers to drop, and a failure to clear one must not
+            // turn a successful inventory removal into an error.
+            if FileManager.default.fileExists(atPath: expandPath(HistoryStore.defaultPath)) {
+                do {
+                    let store = try HistoryStore()
+                    Self.clearMarkers(for: name, in: store) { message in
+                        FileHandle.standardError.write(Data(message.utf8))
+                    }
+                } catch {
+                    // The name is interpolated once, never adjacent to another single
+                    // quote: a template producing `'\(name)''s markers` reads as a typo,
+                    // not a machine name (2ᵉ passe de revue, patch).
+                    FileHandle.standardError.write(Data(
+                        "warning: could not open hpm.db to clear notified/event markers for '\(name)' — \(error)\n".utf8))
+                }
+            }
+        }
+
+        /// The testable core: clears the events cursor and the notification marker
+        /// independently, so one failing does not mask the other, and each warning names
+        /// the marker that actually failed rather than a generic one that could be wrong
+        /// about which side broke.
+        static func clearMarkers(for name: String, in store: HistoryStore, report: (String) -> Void) {
+            do {
+                try store.clearEventCursor(machine: name)
+            } catch {
+                report("warning: could not clear the events cursor for '\(name)' — \(error)\n")
+            }
+            do {
+                try store.clearNotifiedUpTo(machine: name)
+            } catch {
+                report("warning: could not clear the notified marker for '\(name)' — \(error)\n")
             }
         }
     }
@@ -369,6 +403,208 @@ struct TasksCmd: ParsableCommand {
             ])
         }
         printTable(rows)
+    }
+}
+
+// MARK: - events
+
+/// The CLI twin of the Events tab (AD-13): the same reader, the same window, the same
+/// severity filter. Nothing here decides anything about events — `HomeportEventsReader`
+/// does, in the kit, where `swift test` covers it.
+struct EventsCmd: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "events", abstract: "Show the events reported by a machine's Homeport.")
+    @Option(name: [.customShort("m"), .customLong("machine")], help: "Only this machine (default: every declared machine).") var machine: String?
+    @Option(name: [.customShort("s"), .customLong("severity")], help: "Only this severity: info, warning or critical.") var severity: String?
+    @Option(name: [.customShort("n"), .customLong("limit")], help: "Number of events per machine (default: \(HomeportEventsReader.defaultLimit)).") var limit: Int?
+
+    func run() async throws {
+        let filter = try Self.parseSeverityOption(severity)
+        let limit = try Self.validateLimitOption(limit)
+
+        let targets: [Machine]
+        if let name = machine {
+            targets = [try FleetStore().machine(named: name)]
+        } else {
+            targets = try FleetStore().load().machines
+            guard !targets.isEmpty else {
+                throw HPMError("no machines declared — start with: hpm machine add <name> --ssh <host>")
+            }
+        }
+
+        // Same doctrine as `tasks`: a listing must never bring hpm.db into existence. The
+        // cursor is optional to a read — without it the window is identical, only the
+        // cross-process reset detection is missing.
+        var cursors: EventCursorStore?
+        if FileManager.default.fileExists(atPath: expandPath(HistoryStore.defaultPath)) {
+            do {
+                cursors = try HistoryStore()
+            } catch {
+                FileHandle.standardError.write(Data("warning: events cursor unavailable — \(error)\n".utf8))
+            }
+        }
+        // `advancingCursor: false`: reading a journal is not marking it read, and a CLI
+        // that consumed the cursor would blind the app's next incremental poll. Moving the
+        // read marker from here waits for story 2.2b, which gives it a second marker to
+        // stay distinct from.
+        let reader = HomeportEventsReader(api: HomeportAPIClient(), cursors: cursors)
+
+        for target in targets {
+            if targets.count > 1 { print("── \(target.name) ──") }
+            switch await reader.read(target, mode: .window, limit: limit, advancingCursor: false) {
+            case .unavailable(let reason):
+                print(unavailableLine(reason, machine: target.name))
+            case .unreachable(let detail):
+                print("\(target.name) is unreachable — \(detail)")
+            case .cancelled:
+                // The command's own task was cancelled (e.g. the process is shutting
+                // down) — no verdict was reached, so nothing is printed for this target
+                // as though one had.
+                continue
+            case .window(let window):
+                if window.cursorWasReset {
+                    print("(the event history of \(target.name) started a new generation — reading it from the beginning)")
+                }
+                report(window.events.filtered(severity: filter), machine: target.name, filter: filter)
+            }
+        }
+    }
+
+    /// A severity outside the three is a typo in the command line, not an unknown value
+    /// served by a machine: the client's "fold to warning" rule is about what a *server*
+    /// sends, and applying it here would silently answer a different question.
+    static func parseSeverityOption(_ raw: String?) throws -> EventSeverity? {
+        guard let raw else { return nil }
+        guard let parsed = EventSeverity(rawValue: raw.lowercased()) else {
+            throw HPMError("--severity must be one of: \(EventSeverity.allCases.map(\.rawValue).joined(separator: ", "))")
+        }
+        return parsed
+    }
+
+    /// Defaults to the reader's own page size, then holds `--limit` to the contract's
+    /// ceiling (§6) — a client-side check, since a server clamp cannot be relied on.
+    static func validateLimitOption(_ raw: Int?) throws -> Int {
+        let limit = raw ?? HomeportEventsReader.defaultLimit
+        guard (1...1000).contains(limit) else {
+            throw HPMError("--limit must be between 1 and 1000 (the contract's ceiling)")
+        }
+        return limit
+    }
+
+    /// Never an error, and never "broken": §8 sends every one of these to an update.
+    private func unavailableLine(_ reason: APIUnavailableReason, machine: String) -> String {
+        switch reason {
+        case .notServed:
+            return "\(machine) does not serve the Homeport v1 API yet — update it to see its events."
+        case .incompatibleContract(let compatibility):
+            return "\(machine) announces API contract \(compatibility.describedVersion), outside the range hpm consumes (\(HomeportAPIContract.supportedRange)) — update it to see its events."
+        case .surfaceNotServed(let surface):
+            return "\(machine) does not serve the '\(surface)' surface of the v1 API — update it to see its events."
+        }
+    }
+
+    /// Newest first, like `hpm tasks` — the window itself is the contract's ascending
+    /// order, reversed once, here, at the point of display.
+    private func report(_ events: [HomeportEvent], machine: String, filter: EventSeverity?) {
+        guard !events.isEmpty else {
+            print(filter.map { "No \($0.rawValue) event on '\(machine)'." } ?? "No event on '\(machine)'.")
+            return
+        }
+        printTable(Self.rows(for: events))
+    }
+
+    /// The table's exact shape, pulled out of `report` so the format can be checked
+    /// without exercising any I/O.
+    static func rows(for events: [HomeportEvent]) -> [[String]] {
+        var rows: [[String]] = [["ID", "DATE", "SEVERITY", "KIND", "SUBJECT", "DETAIL"]]
+        for event in events.reversed() {
+            rows.append([
+                String(event.id),
+                HistoryStore.iso8601String(from: event.timestamp),
+                event.severity.rawValue,
+                event.kind,
+                event.subject,
+                event.detail ?? "-",
+            ])
+        }
+        return rows
+    }
+}
+
+// MARK: - metrics
+
+/// The CLI twin of the Metrics tab (AD-13/FR11): the same reader, the same window, the same
+/// numbers. Nothing here decides anything about a metric — `HomeportMetricsReader` and the
+/// value types under it do, in the kit, where `swift test` covers them.
+///
+/// No `HistoryStore` anywhere in this command, unlike `events`: AD-6 keeps hpm.db for the
+/// events cursor and the notification marker, and metrics have neither. There is nothing to
+/// read from it and nothing to write to it.
+struct MetricsCmd: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "metrics", abstract: "Show the health metrics recorded by a machine's Homeport.")
+    @Argument(help: "The machine to read.") var machine: String
+    @Option(name: [.customShort("r"), .customLong("range")], help: "Window to read: \(MetricsRange.allCases.map(\.rawValue).joined(separator: ", ")) (default: \(HomeportMetricsReader.defaultRange.rawValue)).") var range: String?
+
+    func run() async throws {
+        // Parsed before anything else touches the fleet or the network: an unknown range is
+        // a typo on the command line, and it must cost nothing to find out.
+        let range = try Self.parseRangeOption(self.range)
+        let target = try FleetStore().machine(named: machine)
+
+        switch await HomeportMetricsReader(api: HomeportAPIClient()).read(target, range: range) {
+        case .unavailable(let reason):
+            print(unavailableLine(reason, machine: target.name))
+        case .unreachable(let detail):
+            print("\(target.name) is unreachable — \(detail)")
+        case .cancelled:
+            // The command's own task was cancelled — no verdict was reached, so nothing is
+            // printed as though one had been.
+            return
+        case .window(let window):
+            print(Self.header(for: window))
+            printTable(Self.rows(for: window))
+        }
+    }
+
+    /// A range outside the four is a typo, not a value served by a machine: the contract's
+    /// own answer to an unknown range is a 400 (§7), and there is no neighbouring value to
+    /// fall back on. The message is built from the enum so it cannot drift from it.
+    static func parseRangeOption(_ raw: String?) throws -> MetricsRange {
+        guard let raw else { return HomeportMetricsReader.defaultRange }
+        guard let parsed = MetricsRange(rawValue: raw.lowercased()) else {
+            throw HPMError("--range must be one of: \(MetricsRange.allCases.map(\.rawValue).joined(separator: ", "))")
+        }
+        return parsed
+    }
+
+    /// The grid as served, announced before the table unrolls: at 24 h it is 1 440 lines,
+    /// and the header is what makes that volume predictable rather than surprising.
+    static func header(for window: MetricsWindow) -> String {
+        "range \(window.range.rawValue)  step \(window.stepS)s  from \(HistoryStore.iso8601String(from: window.from))  to \(HistoryStore.iso8601String(from: window.to))  points \(window.pointCount)"
+    }
+
+    /// The table's exact shape, pulled out of `run` so the format can be checked without
+    /// exercising any I/O. One line per grid slot — the same content as the curve, which is
+    /// what FR11 asks of a CLI twin; a current/min/max summary would be a *different*
+    /// content. Newest first, like every other table in hpm.
+    static func rows(for window: MetricsWindow) -> [[String]] {
+        var rows: [[String]] = [["DATE", "CPU%", "MEM%", "DISK%", "TEMP°C"]]
+        for index in stride(from: window.pointCount - 1, through: 0, by: -1) {
+            rows.append([HistoryStore.iso8601String(from: window.timestamp(at: index))]
+                + window.series.map { MetricValue.text($0.points[index], absent: "-") })
+        }
+        return rows
+    }
+
+    /// Never an error, and never "broken": §8 sends every one of these to an update.
+    private func unavailableLine(_ reason: APIUnavailableReason, machine: String) -> String {
+        switch reason {
+        case .notServed:
+            return "\(machine) does not serve the Homeport v1 API yet — update it to see its metrics."
+        case .incompatibleContract(let compatibility):
+            return "\(machine) announces API contract \(compatibility.describedVersion), outside the range hpm consumes (\(HomeportAPIContract.supportedRange)) — update it to see its metrics."
+        case .surfaceNotServed(let surface):
+            return "\(machine) does not serve the '\(surface)' surface of the v1 API — update it to see its metrics."
+        }
     }
 }
 

@@ -2,8 +2,13 @@ import ArgumentParser
 import Foundation
 import HomePortKit
 
+/// `AsyncParsableCommand` rather than `ParsableCommand`: `events` is the first command
+/// whose work is asynchronous (the Homeport API client, AD-3), and only an async root
+/// awaits an async subcommand — under a synchronous `main()` the parsed command's `run()`
+/// is called without an async context. Every other subcommand stays synchronous; the root
+/// only changes how it is entered.
 @main
-struct HPM: ParsableCommand {
+struct HPM: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "hpm",
         abstract: "Manage the life cycle of Homeport instances.",
@@ -11,7 +16,7 @@ struct HPM: ParsableCommand {
             MachineCmd.self, StatusCmd.self, ReleasesCmd.self, PrereqsCmd.self,
             InstallCmd.self, UpdateCmd.self, BackupCmd.self, RestoreCmd.self,
             ConfigCmd.self, RemoveCmd.self, LogsCmd.self, RestartCmd.self, DoctorCmd.self,
-            TasksCmd.self, UnlockCmd.self,
+            TasksCmd.self, EventsCmd.self, MetricsCmd.self, UnlockCmd.self,
         ]
     )
 }

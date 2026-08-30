@@ -142,12 +142,36 @@ severity: low
 reason: The follow-up-review damping cap (limits.max_followup_reviews = 1) was spent with the story finalized (status: done, verify green) while the review pass still recommended an independent follow-up. The work was committed by bmad-loop run 20260823-185918-2f6f; this entry preserves the lingering recommendation for a deliberate later review.
 status: open
 
+### DW-17: Le câblage de l'onglet Événements (EventFeed, EventFeedStore, le poll scopé, la fusion incrémentale, le choix des trois états, le filtre de sévérité) n'a aucune vérification exécutable.
+origin: spec-deferred 2-2a-ui-wiring
+location: App/Sources/EventsTabView.swift, App/Sources/MachineDetailView.swift, App/Sources/ControlCenterWindow.swift
+source_spec: `spec-2-2a-flux-d-événements-et-onglet-événements.md`
+severity: medium
+reason: Même parapluie pré-existant que DW-2/DW-4/DW-7/DW-10/DW-12 : `App/Sources` n'est pas dans le graphe SwiftPM (Package.swift ne déclare que HomePortKit, hpm et HomePortKitTests), donc `swift test` ne peut rien y assurer et `Scripts/verify-app-build.sh` ne fait que compiler. Concrètement : inverser la branche `window.isFullWindow` d'`EventFeed.apply` (remplacer au lieu de fusionner, ou l'inverse) ferait disparaître ou dupliquer des événements à chaque poll ; supprimer `unavailable = nil` de la branche `.unreachable` renverrait l'utilisateur vers Updates pour une machine simplement injoignable ; passer `advancingCursor: false` dans `EventFeed.read` rendrait chaque poll incrémental identique au précédent. Aucun de ces trois cas ne rougirait quoi que ce soit. La logique décidable est délibérément dans le kit (`HomeportEventsReader`, couverte par ManagerEventsTests) ; ce qui reste ici est de l'état d'affichage. Piste inchangée : un bundle de tests app dans le xcodeproj, ou extraire `EventFeed` (pur, sans SwiftUI hors des `@Published`) vers HomePortKit.
+status: open
+
+### DW-18: `hpm events` n'avance pas le marqueur de lecture, alors que le contexte d'epic prévoit qu'il le fasse.
+origin: spec-deferred 2-2a-cli-cursor
+location: Sources/hpm/Commands.swift (EventsCmd), Sources/HomePortKit/Manager+Events.swift (advancingCursor)
+source_spec: `spec-2-2a-flux-d-événements-et-onglet-événements.md`
+severity: medium
+reason: `docs/build/epic-2-context.md` écrit « ce qui permet à `hpm events` d'avancer la lecture sans jamais escamoter une notification » — mais cette phrase ne tient que lorsque `notified_up_to` existe pour rester distinct du curseur de lecture, et la 2.2a le met explicitement hors périmètre. En 2.2a, un `hpm events` qui consommerait le curseur aveuglerait le poll incrémental de l'onglet : l'app ne verrait jamais les événements que le CLI vient d'imprimer. `EventsCmd` passe donc `advancingCursor: false` et l'app est l'unique rédacteur du curseur. À rouvrir en 2.2b, où le second marqueur rend le geste sûr : le paramètre `advancingCursor` existe déjà pour ça.
+status: open
+
+### DW-19: Le contrat épinglé reste sans lien exécutable sur son volet métriques (§7) et sur la fenêtre de restore que §5 laisse ouverte.
+origin: spec-deferred 2-2a-contract-coverage
+location: docs/api/homeport-api-v1.md §5, §7
+source_spec: `spec-2-2a-flux-d-événements-et-onglet-événements.md`
+severity: low
+reason: La 2.2a ferme la moitié du trou signalé à la revue de la 2.1 : les sévérités, l'invalidation `(epoch, latest_id)`, la pagination et la table des échecs de §8 sont désormais décodées par du code que `HomeportAPIClientTests` et `ManagerEventsTests` contredisent si elles dérivent. Restent sans test : la grille de métriques et l'alignement `from`/`to` sur `step_s` (§7), qui appartiennent à la story 2.3 ; et la fenêtre que §5 accepte sciemment — un restore qui ramène l'ancien epoch puis regrossit au-delà du curseur avant le sondage suivant, que ni l'epoch ni `latest_id` ne distinguent. Cette seconde n'est pas testable côté client par construction : la parade vit dans l'outil qui restaure (voir la note « `hpm restore` devrait invalider l'epoch » plus bas).
+status: open
+
 - source_spec: none
   summary: RÉSOLU le 24/08 — DefaultProcessRunner.run pouvait interbloquer sur une commande qui écrit beaucoup sur stderr. Les deux pipes drainent désormais concurremment, et les drains démarrent avant l'écriture de stdin (même forme de blocage côté entrée). Interblocage reproduit puis fermé : l'ancien code tourne encore après 16 s là où la suite complète prend 1,4 s. Couvert par testDefaultRunnerDrainsBothPipesWhenStderrOverflowsItsBuffer et testDefaultRunnerDrainsWhileWritingALargeStdin — deux tests qui, avant le correctif, n'échouent pas mais se bloquent.
   evidence: Sources/HomePortKit/ProcessRunner.swift lit `outPipe.readDataToEndOfFile()` puis `errPipe.readDataToEndOfFile()` séquentiellement. Le commentaire ne couvre que le deadlock contre waitUntilExit. Si l'enfant écrit plus que la capacité du buffer de pipe (~64 Kio) sur stderr pendant que le parent est bloqué sur stdout, l'enfant bloque en écriture, n'atteint jamais EOF sur stdout, et le parent l'attend indéfiniment — l'app se fige sans erreur. Code antérieur au run bmad-loop (présent dès e9a257a), mais le risque monte avec les commandes ajoutées par l'epic 1 (update, doctor, config-pull), dont apt et ssh sont verbeux sur stderr. Correctif : drainer les deux pipes concurremment (readabilityHandler ou deux files), comme le fait déjà ProcessFollow pour le streaming dans le même fichier.
 
 - source_spec: `spec-2-1-contrat-api-v1-et-flux-d-événements.md`
-  summary: L'API v1 est écrite, pas servie. Le contrat `docs/api/homeport-api-v1.md` et la plage consommée par hpm existent et s'accordent, mais aucune machine ne répond sur `/api/v1/` — l'implémentation serveur reste entièrement à faire dans le dépôt Homeport, et le client (`HomeportAPIClient`, onglet Événements, `hpm events`) reste à écrire dans la story 2.2. La clé `2-1` est donc `in-progress`, pas `done`.
+  summary: RÉSOLU le 28/08 — l'API v1 est servie. `raspcorse` et `raspyellow` répondent tous deux sur `/api/v1/capabilities` avec `contract 1.0.0`, `server 0.8.0` et `features: ["events","metrics"]`, et `hpm events` (story 2.2a) lit leur journal réel. Le libellé d'origine suit. — L'API v1 est écrite, pas servie. Le contrat `docs/api/homeport-api-v1.md` et la plage consommée par hpm existent et s'accordent, mais aucune machine ne répond sur `/api/v1/` — l'implémentation serveur reste entièrement à faire dans le dépôt Homeport, et le client (`HomeportAPIClient`, onglet Événements, `hpm events`) reste à écrire dans la story 2.2. La clé `2-1` est donc `in-progress`, pas `done`.
   evidence: Vérifié sur raspcorse le 24/08 : `/healthz` répond `{"status":"ok","version":"0.7.2"}`, aucune route `/api/v1/` n'existe. Le contrat décrit trois choses entièrement neuves côté serveur — l'epoch et sa régénération au restore, `latest_id`, et l'agrégation des métriques en quatre échelles plus la série `disk_pct`, absente de la collecte historisée actuelle (`homeport/collectors/history.py` ne stocke que cpu/mem/temp/nvme sur une seule échelle). Les critères d'acceptation 2 et 3 de la story commencent tous deux par « Given un Homeport exposant l'API » et resteront invérifiables jusque-là ; aucune story de l'epic 2 ne peut se clore avant.
 
 - source_spec: `spec-2-1-contrat-api-v1-et-flux-d-événements.md`
@@ -172,3 +196,51 @@ un historique qui regrossit au-delà du curseur avant le sondage suivant.
 le `cp -a` — l'agent qui substitue la base est le seul à savoir qu'il l'a fait. Cela déplace une
 obligation de Homeport vers HomePortManager et engage les deux dépôts, donc une décision de
 conception à trancher, pas un correctif à appliquer.
+
+### DW-20: Unreadable `deferred:` items in spec-2-2a-flux-d-événements-et-onglet-événements.md
+origin: spec-deferred-malformed 851971cb9eb5
+location: n/a
+source_spec: `spec-2-2a-flux-d-événements-et-onglet-événements.md`
+severity: low
+reason: The dev session recorded deferred findings the orchestrator could not parse, so they were NOT filed as entries: item 1: not a mapping (got str); item 2: not a mapping (got str); item 3: not a mapping (got str). Read `spec-2-2a-flux-d-événements-et-onglet-événements.md`'s frontmatter and re-file them by hand.
+status: open
+
+### DW-21: Le sondage de fond des notifications, le gating single-policy et la navigation clic-notification (App/Sources) n'ont aucune vérification exécutable via swift test.
+origin: spec-deferred 2-2b-background-poll
+location: App/Sources/FleetModel.swift, App/Sources/Notifier.swift, App/Sources/ControlCenterWindow.swift, App/Sources/MachineDetailView.swift
+source_spec: `spec-2-2b-notifications-critiques-et-politique-de-repli.md`
+severity: medium
+reason: Même parapluie que DW-17 : `App/Sources` n'est pas dans le graphe SwiftPM (Package.swift ne déclare que HomePortKit, hpm et HomePortKitTests). La détection de reset elle-même n'est *pas* concernée — `notifiableCriticalEvents` compare `notifiedMarker.epoch` contre `window.epoch` entièrement dans HomePortKit, et `ManagerNotificationsTests` la couvre directement, epoch changeant sans qu'aucune ligne `event_cursors` n'existe jamais y compris. Ce qui reste réellement non testable via `swift test` est l'orchestration temps réel autour de cette décision pure : `FleetModel.pollEventsForNotifications`/`pollEvents` (le timer 45 s, la lecture puis l'écriture de `NotifiedMarkerStore`, le gating de la boucle `transitions()`/`Notifier.notify` de `refresh()` sur `eventsAvailable`), le délégué `UNUserNotificationCenterDelegate` de `Notifier.swift` (le clic, la course avec `FleetModel.init` sur `Notifier.model`), et la chaîne de navigation (`ControlCenterCommands.pendingNavigation`, consommé par `ControlCenterView`/`MachineDetailView`). Concrètement, inverser la garde `eventsAvailable[name] != true` dans `refresh()` ferait notifier deux fois la même machine (événements et transitions SSH) sans qu'aucun test ne rougisse ; retirer le `guard machines.contains(...)` de `pollEvents` laisserait une entrée `eventsAvailable` fantôme pour une machine retirée de fleet.yaml, invisible aussi. Piste inchangée par rapport à DW-17 : un bundle de tests app dans le xcodeproj, ou extraire l'orchestration restante (au-delà des fonctions déjà pures) vers HomePortKit.
+status: open
+
+### DW-22: Le rendu du graphique de métriques diverge entre l'onglet de l'app et `hpm metrics` sur un segment à un seul point.
+origin: review 2-3-métriques-historisées (finding #2)
+location: App/Sources/MetricsTabView.swift (MetricCard.chart)
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: `LineMark`/`AreaMark` sans `.symbol` ne trace rien pour un segment réduit à un seul point de données (ex. fenêtre 1y avec un seul échantillon récent) — le point disparaît silencieusement au lieu d'apparaître comme dans `hpm metrics`, qui affiche la valeur en table quel que soit le nombre de points. Aucun test (Swift Charts non testable via `swift test`) ne rougirait si ce cas régressait. Piste : ajouter un `.symbol` conditionnel ou un `PointMark` de repli quand un segment ne contient qu'un point.
+status: open
+
+### DW-23: `MetricsTabView` n'est pas couvert par le render-probe du projet.
+origin: review 2-3-métriques-historisées (finding #3)
+location: Scripts/render-probe/main.swift
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: Le render-probe est le seul mécanisme du projet qui rend réellement une vue SwiftUI pour attraper les bugs de mise en page (ex. un `Chart` dont la hauteur s'effondre à zéro) que `swift test`/`xcodebuild` seuls ne détectent pas. `MetricsTabView`, nouvel onglet de cette story, n'y a pas été ajouté — une régression de layout sur cet onglet spécifiquement passerait inaperçue de toute la chaîne de vérification actuelle. Piste : ajouter un scénario `MetricsTabView` au probe, avec au moins un cas à segment unique (cf. DW-22).
+status: open
+
+### DW-24: Indexation non protégée dans `rows(for:)` (hpm) et invariant de longueur non imposé par `MetricsWindow.init`.
+origin: review 2-3-métriques-historisées (finding #5)
+location: Sources/hpm/Commands.swift (MetricsCmd.rows(for:), ligne ~591), Sources/HomePortKit/HomeportAPIClient.swift (MetricsWindow.init)
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: `rows(for:)` indexe les séries de `MetricsWindow` par position sans vérifier qu'elles ont toutes la même longueur que la grille, et `MetricsWindow.init` n'impose pas cet invariant à la construction — il repose entièrement sur la discipline de l'appelant (`window(from:)`, qui le respecte aujourd'hui). Un payload malformé où une série serait plus courte que la grille — ou un futur appelant qui construirait `MetricsWindow` sans passer par `window(from:)` — provoquerait un crash par accès hors bornes non couvert par un test existant. Piste : faire valider la longueur des séries dans `MetricsWindow.init` (fatalError ou init failable), ou borner `rows(for:)` par `min(grid.count, series.count)`.
+status: open
+
+### DW-25: `MetricsFeed.apply` conserve une fenêtre de métriques obsolète lors d'un échec de fetch déclenché par un changement de plage.
+origin: review 2-3-métriques-historisées (finding #6)
+location: App/Sources/MetricsTabView.swift (MetricsFeed.apply, cas .unreachable, lignes ~108-116)
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: Quand l'utilisateur change de plage (ex. 24h → 1y) et que le fetch de la nouvelle fenêtre échoue (`.unreachable`), `MetricsFeed.apply` continue d'afficher la fenêtre de l'ancienne plage plutôt que de refléter l'échec ou de vider l'affichage — l'utilisateur peut croire à tort qu'il regarde des données de la plage sélectionnée. Aucun test app (App/Sources hors graphe SwiftPM, cf. DW-17/DW-21) ne couvre ce chemin. Piste : faire porter l'état `.unreachable` sur la plage demandée plutôt que de le faire retomber silencieusement sur la dernière fenêtre servie.
+status: open

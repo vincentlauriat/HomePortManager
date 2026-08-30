@@ -47,6 +47,30 @@
         }
       }
     },
+    "%@ — %@ — %@": {
+      "comment": "Body of the critical-event notification (story 2.2b): subject, kind, detail (machine content, never translated) — dash-separated, so the format stays identical across languages.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@ — %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@ — %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@ — %@"
+          }
+        }
+      }
+    },
     "%@: %@ failed": {
       "extractionState": "manual",
       "localizations": {
@@ -66,6 +90,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@：%@ 失败"
+          }
+        }
+      }
+    },
+    "%@: critical event": {
+      "comment": "Title of the macOS notification for a critical event (story 2.2b). %@ is the machine name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: critical event"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ : événement critique"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@：严重事件"
           }
         }
       }
@@ -808,6 +856,29 @@
         }
       }
     },
+    "Events not available": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Events not available"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Événements non disponibles"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事件不可用"
+          }
+        }
+      }
+    },
     "Every action started from this Mac — from the app or from the hpm command line — is recorded here once it runs.": {
       "extractionState": "manual",
       "localizations": {
@@ -873,6 +944,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "按名称筛选"
+          }
+        }
+      }
+    },
+    "Filter events by severity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter events by severity"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtrer les événements par sévérité"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按严重程度筛选事件"
           }
         }
       }
@@ -1057,6 +1151,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法访问 GitHub — 最新版本未知"
+          }
+        }
+      }
+    },
+    "Go to Updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Updates"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir les mises à jour"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前往更新"
+          }
+        }
+      }
+    },
+    "Guided updates arrive with story 3.3, update management.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guided updates arrive with story 3.3, update management."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour guidées arrivent avec la story 3.3, gestion des mises à jour."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引导式更新将随故事 3.3（更新管理）一起提供。"
           }
         }
       }
@@ -1452,29 +1592,6 @@
         }
       }
     },
-    "Metric charts arrive with story 2.3, historised metrics.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Metric charts arrive with story 2.3, historised metrics."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les graphiques de métriques arrivent avec la story 2.3, métriques historisées."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指标图表将随故事 2.3（历史指标）一起提供。"
-          }
-        }
-      }
-    },
     "Metrics": {
       "extractionState": "manual",
       "localizations": {
@@ -1494,6 +1611,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "指标"
+          }
+        }
+      }
+    },
+    "Metrics not available": {
+      "comment": "Empty state of the Metrics tab when the machine's Homeport does not serve the surface (§8) — an update is the remedy, never an error.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metrics not available"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Métriques non disponibles"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指标不可用"
           }
         }
       }
@@ -1563,6 +1704,75 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有仪表盘地址"
+          }
+        }
+      }
+    },
+    "No event matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No event matches"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun événement ne correspond"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的事件"
+          }
+        }
+      }
+    },
+    "No event of this machine matches the selected severity.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No event of this machine matches the selected severity."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun événement de cette machine ne correspond à la sévérité sélectionnée."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该机器没有与所选严重程度匹配的事件。"
+          }
+        }
+      }
+    },
+    "No events yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No events yet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun événement pour l'instant"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无事件"
           }
         }
       }
@@ -1728,6 +1938,29 @@
         }
       }
     },
+    "No metrics yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No metrics yet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune métrique pour l'instant"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无指标"
+          }
+        }
+      }
+    },
     "No tasks yet": {
       "extractionState": "manual",
       "localizations": {
@@ -1798,6 +2031,7 @@
       }
     },
     "OK": {
+      "comment": "Confirmation button of a modal alert.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -1818,8 +2052,7 @@
             "value": "确定"
           }
         }
-      },
-      "comment": "Confirmation button of a modal alert."
+      }
     },
     "Open the control center": {
       "extractionState": "manual",
@@ -2169,6 +2402,7 @@
       }
     },
     "Restart %@": {
+      "comment": "Title of the Restart confirmation sheet.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -2189,8 +2423,7 @@
             "value": "重启 %@"
           }
         }
-      },
-      "comment": "Title of the Restart confirmation sheet."
+      }
     },
     "Restart finished": {
       "extractionState": "manual",
@@ -2722,6 +2955,7 @@
       }
     },
     "The Homeport service on %@ stops and starts again, then its health is checked. Whatever it serves is briefly unavailable.": {
+      "comment": "Consequence line of the Restart confirmation sheet.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -2742,8 +2976,7 @@
             "value": "%@ 上的 Homeport 服务将停止并重新启动，然后检查其健康状态。其所服务的内容将短暂不可用。"
           }
         }
-      },
-      "comment": "Consequence line of the Restart confirmation sheet."
+      }
     },
     "The control center reads your fleet from this file. Declare a first machine and it shows up here, with its own colour.": {
       "extractionState": "manual",
@@ -2814,6 +3047,29 @@
         }
       }
     },
+    "The event history of this machine started a new generation — it is shown from the beginning.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The event history of this machine started a new generation — it is shown from the beginning."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'historique des événements de cette machine a démarré une nouvelle génération — il est affiché depuis le début."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此机器的事件历史记录已开始新一代 — 从头开始显示。"
+          }
+        }
+      }
+    },
     "The event stream arrives with story 2.1, the v1 API contract and event stream.": {
       "extractionState": "manual",
       "localizations": {
@@ -2833,6 +3089,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "事件流将随故事 2.1（v1 API 契约与事件流）一起提供。"
+          }
+        }
+      }
+    },
+    "The metric history of this machine started a new generation — the curves shown are the new one.": {
+      "comment": "Generation-change note of the Metrics tab (§5/§7): a normal event in a machine's life, never an error.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The metric history of this machine started a new generation — the curves shown are the new one."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'historique de métriques de cette machine a changé de génération — les courbes affichées sont celles de la nouvelle."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该机器的指标历史已进入新一代 — 所显示的曲线属于新一代。"
           }
         }
       }
@@ -2902,6 +3182,98 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法打开任务日志——操作仍会正常执行，只是不会在此留下任何记录。请检查下方文件，然后重新启动应用程序。"
+          }
+        }
+      }
+    },
+    "This machine has not recorded any metrics yet. They appear here as its Homeport samples them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This machine has not recorded any metrics yet. They appear here as its Homeport samples them."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette machine n'a encore enregistré aucune mesure. Elles apparaîtront ici au fur et à mesure que son Homeport les échantillonne."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该机器尚未记录任何测量值。其 Homeport 采样后将显示在此处。"
+          }
+        }
+      }
+    },
+    "This machine has not reported anything yet. Events appear here as its Homeport records them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This machine has not reported anything yet. Events appear here as its Homeport records them."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette machine n'a encore rien signalé. Les événements apparaîtront ici au fur et à mesure que son Homeport les enregistre."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此机器尚未报告任何内容。事件将在其 Homeport 记录后显示在此处。"
+          }
+        }
+      }
+    },
+    "This version of Homeport does not serve events yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This version of Homeport does not serve events yet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version de Homeport ne fournit pas encore les événements."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本的 Homeport 尚不提供事件功能。"
+          }
+        }
+      }
+    },
+    "This version of Homeport does not serve metrics yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This version of Homeport does not serve metrics yet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version de Homeport ne sert pas encore les métriques."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本的 Homeport 尚未提供指标。"
           }
         }
       }
@@ -3323,6 +3695,7 @@
       }
     },
     "confirm.remove": {
+      "comment": "Critical button of the Remove confirmation sheet — an imperative, not the noun the action title uses.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3343,10 +3716,10 @@
             "value": "卸载"
           }
         }
-      },
-      "comment": "Critical button of the Remove confirmation sheet — an imperative, not the noun the action title uses."
+      }
     },
     "confirm.restart": {
+      "comment": "Critical button of the Restart confirmation sheet — an imperative, not the noun the action title uses.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3367,10 +3740,10 @@
             "value": "重启"
           }
         }
-      },
-      "comment": "Critical button of the Restart confirmation sheet — an imperative, not the noun the action title uses."
+      }
     },
     "confirm.restore": {
+      "comment": "Critical button of the Restore confirmation sheet — an imperative, not the noun the action title uses.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3391,10 +3764,10 @@
             "value": "恢复"
           }
         }
-      },
-      "comment": "Critical button of the Restore confirmation sheet — an imperative, not the noun the action title uses."
+      }
     },
     "confirm.update": {
+      "comment": "Critical button of the Update confirmation sheet — an imperative, not the noun the action title uses.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3415,8 +3788,191 @@
             "value": "更新"
           }
         }
-      },
-      "comment": "Critical button of the Update confirmation sheet — an imperative, not the noun the action title uses."
+      }
+    },
+    "events.column.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detail"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détail"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "详情"
+          }
+        }
+      }
+    },
+    "events.column.kind": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kind"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "类型"
+          }
+        }
+      }
+    },
+    "events.column.severity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Severity"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sévérité"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "严重程度"
+          }
+        }
+      }
+    },
+    "events.column.subject": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subject"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Objet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对象"
+          }
+        }
+      }
+    },
+    "events.filter.all": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tous"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部"
+          }
+        }
+      }
+    },
+    "events.filter.critical": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Critical"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Critique"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "严重"
+          }
+        }
+      }
+    },
+    "events.filter.info": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信息"
+          }
+        }
+      }
+    },
+    "events.filter.warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warning"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avertissement"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "警告"
+          }
+        }
+      }
     },
     "fleet.yaml cannot be read": {
       "extractionState": "manual",
@@ -3437,6 +3993,222 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法读取 fleet.yaml"
+          }
+        }
+      }
+    },
+    "metrics.range.1y": {
+      "comment": "Segment of the metrics range picker — the contract's `1y` window (story 2.3).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 y"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 an"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 年"
+          }
+        }
+      }
+    },
+    "metrics.range.24h": {
+      "comment": "Segment of the metrics range picker — the contract's `24h` window (story 2.3).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 h"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 h"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 小时"
+          }
+        }
+      }
+    },
+    "metrics.range.30d": {
+      "comment": "Segment of the metrics range picker — the contract's `30d` window (story 2.3).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 d"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 j"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 天"
+          }
+        }
+      }
+    },
+    "metrics.range.7d": {
+      "comment": "Segment of the metrics range picker — the contract's `7d` window (story 2.3).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 d"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 j"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 天"
+          }
+        }
+      }
+    },
+    "metrics.range.label": {
+      "comment": "Label of the Metrics tab's range picker (story 2.3). Hidden visually, read by VoiceOver.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Range"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plage"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间范围"
+          }
+        }
+      }
+    },
+    "metrics.series.cpu": {
+      "comment": "Title of the `cpu_pct` metric card (story 2.3). Rendered uppercase as an eyebrow.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processeur"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "处理器"
+          }
+        }
+      }
+    },
+    "metrics.series.disk": {
+      "comment": "Title of the `disk_pct` metric card (story 2.3). Rendered uppercase as an eyebrow.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disque"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁盘"
+          }
+        }
+      }
+    },
+    "metrics.series.memory": {
+      "comment": "Title of the `mem_pct` metric card (story 2.3). Rendered uppercase as an eyebrow.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memory"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mémoire"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内存"
+          }
+        }
+      }
+    },
+    "metrics.series.temperature": {
+      "comment": "Title of the `temp_c` metric card (story 2.3). Rendered uppercase as an eyebrow.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temperature"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Température"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "温度"
           }
         }
       }
@@ -3465,6 +4237,7 @@
       }
     },
     "overflow.more": {
+      "comment": "Accessibility label of the overflow row's “…” button. The visible glyph is typography, so only assistive technology reads this.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3485,10 +4258,10 @@
             "value": "更多"
           }
         }
-      },
-      "comment": "Accessibility label of the overflow row's “…” button. The visible glyph is typography, so only assistive technology reads this."
+      }
     },
     "status.pill.critical": {
+      "comment": "Status pill of a machine in a hard failure.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3509,10 +4282,10 @@
             "value": "严重"
           }
         }
-      },
-      "comment": "Status pill of a machine in a hard failure."
+      }
     },
     "status.pill.ok": {
+      "comment": "Status pill of a healthy machine. Distinct from the OK button of an alert, which is 确定 in zh-Hans.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3533,10 +4306,10 @@
             "value": "正常"
           }
         }
-      },
-      "comment": "Status pill of a healthy machine. Distinct from the OK button of an alert, which is 确定 in zh-Hans."
+      }
     },
     "status.pill.warning": {
+      "comment": "Status pill of a machine that needs attention.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -3557,8 +4330,7 @@
             "value": "警告"
           }
         }
-      },
-      "comment": "Status pill of a machine that needs attention."
+      }
     }
   },
   "version": "1.0"

@@ -52,6 +52,35 @@ final class FleetModel: ObservableObject {
     /// pretending "no tasks yet" (the stderr warning is invisible for a menubar app).
     var historyAvailable: Bool { history != nil }
 
+    /// Where the events cursors live (story 2.2a, AD-6). Exposed rather than wrapped: the
+    /// Events tab hands it to `HomeportEventsReader`, and the app is that cursor's only
+    /// writer — `hpm events` reads without moving it. nil when hpm.db could not be opened,
+    /// which costs the reset detection and nothing else.
+    var eventCursors: EventCursorStore? { history }
+
+    /// Where the notification markers live (story 2.2b, AD-6) — a second, independent
+    /// position in the same history, never merged with `eventCursors`. The background poll
+    /// below is this marker's only writer.
+    var notifiedMarkers: NotifiedMarkerStore? { history }
+
+    /// 45 s, shared with `EventsTabView`'s own poll interval. Lives here rather than on the
+    /// view: a model type must not depend on a view type for its own cadence (Code Map).
+    static let eventsPollInterval: Duration = .seconds(45)
+
+    /// Sticky per machine: `true` once a background poll's `.window` read has succeeded at
+    /// least once, `false` only after an explicit `.unavailable`, unchanged (absent =
+    /// "never observed") on a transient failure (`eventsPolicyAvailability`). `refresh()`
+    /// reads this to gate the SSH `transitions()` policy — single-policy (AD, epic 2): a
+    /// machine on the events policy never also gets a menu-bar transition notification.
+    @Published var eventsAvailable: [String: Bool] = [:]
+
+    /// One client for the whole app's background notification poll — never the Events
+    /// tab's own `EventFeedStore.api`, which belongs to that surface's read cursor only.
+    private let notificationsAPI = HomeportAPIClient()
+    private var notificationsPollTask: Task<Void, Never>?
+    /// One trace, not one every 45 s, when hpm.db turns out to be unavailable.
+    private var notifiedMarkerStoreWarned = false
+
     /// `map`, not `compactMap`: a declared machine with no status yet has to reach
     /// `aggregate` as a `nil` so the icon counts it. Filtering it out is what let the menu
     /// bar show a green check while the fleet table showed CRITICAL for the same machine.
@@ -75,6 +104,7 @@ final class FleetModel: ObservableObject {
                                    runner: runner, history: history, report: report)
         }
         Notifier.requestPermission()
+        Notifier.model = self
         // This init is *the* app startup hook (no AppDelegate; the MenuBarExtra's
         // `.onAppear` only fires when the menu opens), so retention runs here — the app
         // alone purges, the CLI never does. Off the MainActor: SQLite work is blocking.
@@ -94,6 +124,16 @@ final class FleetModel: ObservableObject {
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
+        }
+        // Story 2.2b: independent of the Events tab and of its own poll loop — this one
+        // runs from app launch, machine sheet open or not (Code Map), and never touches
+        // `event_cursors` (AD-6). Polls immediately, then every `eventsPollInterval`.
+        notificationsPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.pollEventsForNotifications()
+                try? await Task.sleep(for: Self.eventsPollInterval)
+            }
         }
     }
 
@@ -130,6 +170,12 @@ final class FleetModel: ObservableObject {
         lastReachableStatus = lastReachableStatus.filter { declared.contains($0.key) }
         lastSeenAt = lastSeenAt.filter { declared.contains($0.key) }
         lastError = lastError.filter { declared.contains($0.key) }
+        // Story 2.2b's sticky policy flag is keyed by machine name like the rest: a
+        // re-added machine must be re-observed before its SSH transitions are silenced
+        // again, never inherit an events policy from a previous life. The `guard` in
+        // `pollEvents` below leans on this prune to keep an in-flight poll from putting
+        // the entry back — the two only work as a pair.
+        eventsAvailable = eventsAvailable.filter { declared.contains($0.key) }
     }
 
     /// The rows the global dashboard renders. Pure construction lives in the kit.
@@ -207,8 +253,13 @@ final class FleetModel: ObservableObject {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 for (name, status) in results {
-                    for message in transitions(old: self.statuses[name], new: status) {
-                        Notifier.notify(title: "HomePort", body: message)
+                    // Single-policy (epic 2, AD): a machine the background poll has put on
+                    // the events policy never also gets an SSH-transition notification.
+                    // Absent (never observed) keeps today's behaviour — the SSH policy.
+                    if self.eventsAvailable[name] != true {
+                        for message in transitions(old: self.statuses[name], new: status) {
+                            Notifier.notify(title: "HomePort", body: message)
+                        }
                     }
                     self.statuses[name] = status
                     if status.reachable {
@@ -222,6 +273,76 @@ final class FleetModel: ObservableObject {
                 }
                 self.refreshing = false
             }
+        }
+    }
+
+    // MARK: - Notification poll (story 2.2b)
+
+    /// One tour of the background poll: every declared machine, sequentially — HTTP is
+    /// already async I/O and NFR6 caps the fleet under 10 machines, so a task group buys
+    /// nothing a plain loop does not already give for free.
+    private func pollEventsForNotifications() async {
+        // No hpm.db means no marker: every tour would re-initialize silently and never
+        // notify anything, while `eventsAvailable` would still switch machines onto the
+        // events policy and silence their SSH transitions — total silence on both
+        // channels. Staying entirely out of the poll keeps them on the SSH policy, which
+        // is the honest fallback. Traced once, not every 45 s.
+        guard notifiedMarkers != nil else {
+            if !notifiedMarkerStoreWarned {
+                notifiedMarkerStoreWarned = true
+                FileHandle.standardError.write(Data(
+                    "warning: hpm.db is unavailable — critical-event notifications are off, machines stay on the SSH-transition policy\n".utf8))
+            }
+            return
+        }
+        let reader = HomeportEventsReader(api: notificationsAPI, cursors: nil)
+        for machine in machines {
+            await pollEvents(for: machine, reader: reader)
+        }
+    }
+
+    /// One machine's tour: `.window`, `advancingCursor: false`, `cursors: nil` — the reset
+    /// detection is self-contained on the notified marker's own epoch (Code Map), so this
+    /// poll never needs `event_cursors` and never touches it (AD-6).
+    private func pollEvents(for machine: Machine, reader: HomeportEventsReader) async {
+        let read = await reader.read(machine, mode: .window, advancingCursor: false)
+        // A machine retired from fleet.yaml mid-poll must not leave a stale entry behind
+        // once `reloadFleet()` has already pruned everything else keyed by its name.
+        guard machines.contains(where: { $0.name == machine.name }) else { return }
+        guard let available = eventsPolicyAvailability(for: read) else { return }
+        eventsAvailable[machine.name] = available
+        guard available, case .window(let window) = read else { return }
+        // A double-stale read — the epoch flipped during two consecutive full pulls
+        // (`Manager+Events.swift`) — reports a generation it never managed to read as an
+        // empty history at `latestID` 0. Initializing the marker there would make the
+        // next poll see that whole generation as new and notify it retroactively, which
+        // "jamais rétroactif" forbids. With `cursors: nil` this poll has no stored cursor
+        // to compare against, so `cursorWasReset` can only come from that path here.
+        if window.cursorWasReset, window.events.isEmpty, window.latestID == 0 { return }
+
+        // A read failure here (corrupt hpm.db) must surface as a trace, never be
+        // swallowed by `try?` into "never notified" — that would silently re-notify
+        // everything already seen, or worse, silently skip a real reset.
+        let stored: NotifiedMarker?
+        do {
+            stored = try notifiedMarkers?.notifiedMarker(machine: machine.name)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "warning: could not read the notified marker for \(machine.name) — \(error)\n".utf8))
+            return
+        }
+        let decision = notifiableCriticalEvents(in: window, notifiedMarker: stored)
+        for event in decision.toNotify {
+            Notifier.notifyCriticalEvent(machine: machine.name, event: event)
+        }
+        // Nothing moved: a quiet machine must not cost one SQLite write per 45 s just to
+        // refresh `updated_at`.
+        guard decision.newMarker != stored else { return }
+        do {
+            try notifiedMarkers?.setNotifiedMarker(decision.newMarker, machine: machine.name, now: Date())
+        } catch {
+            FileHandle.standardError.write(Data(
+                "warning: could not store the notified marker for \(machine.name) — \(error)\n".utf8))
         }
     }
 

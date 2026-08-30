@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-23-2026 14:45
-last_updated: 08-27-2026
+last_updated: 08-30-2026
 project: HomePortManager
 project_key: NOKEY
 tracking_system: file-system
@@ -46,8 +46,9 @@ development_status:
 
   epic-2: in-progress
   2-1-contrat-api-v1-et-flux-d-événements: done
-  2-2-notifications-critiques-et-dégradation-sans-api: backlog
-  2-3-métriques-historisées: backlog
+  2-2a-flux-d-événements-et-onglet-événements: done
+  2-2b-notifications-critiques-et-politique-de-repli: done
+  2-3-métriques-historisées: done
   epic-2-retrospective: optional
 
   epic-3: in-progress
