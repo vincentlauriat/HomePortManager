@@ -208,3 +208,35 @@ source_spec: `spec-2-2b-notifications-critiques-et-politique-de-repli.md`
 severity: medium
 reason: Même parapluie que DW-17 : `App/Sources` n'est pas dans le graphe SwiftPM (Package.swift ne déclare que HomePortKit, hpm et HomePortKitTests). La détection de reset elle-même n'est *pas* concernée — `notifiableCriticalEvents` compare `notifiedMarker.epoch` contre `window.epoch` entièrement dans HomePortKit, et `ManagerNotificationsTests` la couvre directement, epoch changeant sans qu'aucune ligne `event_cursors` n'existe jamais y compris. Ce qui reste réellement non testable via `swift test` est l'orchestration temps réel autour de cette décision pure : `FleetModel.pollEventsForNotifications`/`pollEvents` (le timer 45 s, la lecture puis l'écriture de `NotifiedMarkerStore`, le gating de la boucle `transitions()`/`Notifier.notify` de `refresh()` sur `eventsAvailable`), le délégué `UNUserNotificationCenterDelegate` de `Notifier.swift` (le clic, la course avec `FleetModel.init` sur `Notifier.model`), et la chaîne de navigation (`ControlCenterCommands.pendingNavigation`, consommé par `ControlCenterView`/`MachineDetailView`). Concrètement, inverser la garde `eventsAvailable[name] != true` dans `refresh()` ferait notifier deux fois la même machine (événements et transitions SSH) sans qu'aucun test ne rougisse ; retirer le `guard machines.contains(...)` de `pollEvents` laisserait une entrée `eventsAvailable` fantôme pour une machine retirée de fleet.yaml, invisible aussi. Piste inchangée par rapport à DW-17 : un bundle de tests app dans le xcodeproj, ou extraire l'orchestration restante (au-delà des fonctions déjà pures) vers HomePortKit.
 status: open
+
+### DW-22: Le rendu du graphique de métriques diverge entre l'onglet de l'app et `hpm metrics` sur un segment à un seul point.
+origin: review 2-3-métriques-historisées (finding #2)
+location: App/Sources/MetricsTabView.swift (MetricCard.chart)
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: `LineMark`/`AreaMark` sans `.symbol` ne trace rien pour un segment réduit à un seul point de données (ex. fenêtre 1y avec un seul échantillon récent) — le point disparaît silencieusement au lieu d'apparaître comme dans `hpm metrics`, qui affiche la valeur en table quel que soit le nombre de points. Aucun test (Swift Charts non testable via `swift test`) ne rougirait si ce cas régressait. Piste : ajouter un `.symbol` conditionnel ou un `PointMark` de repli quand un segment ne contient qu'un point.
+status: open
+
+### DW-23: `MetricsTabView` n'est pas couvert par le render-probe du projet.
+origin: review 2-3-métriques-historisées (finding #3)
+location: Scripts/render-probe/main.swift
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: Le render-probe est le seul mécanisme du projet qui rend réellement une vue SwiftUI pour attraper les bugs de mise en page (ex. un `Chart` dont la hauteur s'effondre à zéro) que `swift test`/`xcodebuild` seuls ne détectent pas. `MetricsTabView`, nouvel onglet de cette story, n'y a pas été ajouté — une régression de layout sur cet onglet spécifiquement passerait inaperçue de toute la chaîne de vérification actuelle. Piste : ajouter un scénario `MetricsTabView` au probe, avec au moins un cas à segment unique (cf. DW-22).
+status: open
+
+### DW-24: Indexation non protégée dans `rows(for:)` (hpm) et invariant de longueur non imposé par `MetricsWindow.init`.
+origin: review 2-3-métriques-historisées (finding #5)
+location: Sources/hpm/Commands.swift (MetricsCmd.rows(for:), ligne ~591), Sources/HomePortKit/HomeportAPIClient.swift (MetricsWindow.init)
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: `rows(for:)` indexe les séries de `MetricsWindow` par position sans vérifier qu'elles ont toutes la même longueur que la grille, et `MetricsWindow.init` n'impose pas cet invariant à la construction — il repose entièrement sur la discipline de l'appelant (`window(from:)`, qui le respecte aujourd'hui). Un payload malformé où une série serait plus courte que la grille — ou un futur appelant qui construirait `MetricsWindow` sans passer par `window(from:)` — provoquerait un crash par accès hors bornes non couvert par un test existant. Piste : faire valider la longueur des séries dans `MetricsWindow.init` (fatalError ou init failable), ou borner `rows(for:)` par `min(grid.count, series.count)`.
+status: open
+
+### DW-25: `MetricsFeed.apply` conserve une fenêtre de métriques obsolète lors d'un échec de fetch déclenché par un changement de plage.
+origin: review 2-3-métriques-historisées (finding #6)
+location: App/Sources/MetricsTabView.swift (MetricsFeed.apply, cas .unreachable, lignes ~108-116)
+source_spec: `spec-2-3-métriques-historisées.md`
+severity: low
+reason: Quand l'utilisateur change de plage (ex. 24h → 1y) et que le fetch de la nouvelle fenêtre échoue (`.unreachable`), `MetricsFeed.apply` continue d'afficher la fenêtre de l'ancienne plage plutôt que de refléter l'échec ou de vider l'affichage — l'utilisateur peut croire à tort qu'il regarde des données de la plage sélectionnée. Aucun test app (App/Sources hors graphe SwiftPM, cf. DW-17/DW-21) ne couvre ce chemin. Piste : faire porter l'état `.unreachable` sur la plage demandée plutôt que de le faire retomber silencieusement sur la dernière fenêtre servie.
+status: open

@@ -48,7 +48,7 @@ development_status:
   2-1-contrat-api-v1-et-flux-d-événements: done
   2-2a-flux-d-événements-et-onglet-événements: done
   2-2b-notifications-critiques-et-politique-de-repli: done
-  2-3-métriques-historisées: backlog
+  2-3-métriques-historisées: done
   epic-2-retrospective: optional
 
   epic-3: backlog
