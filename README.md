@@ -35,7 +35,8 @@ hpm status --all                                   # fleet table: version, servi
 | `hpm prereqs <m> [--fix]` | Verify machine prerequisites, optionally apt-install them |
 | `hpm install <m> [--version vX.Y.Z]` | Push tarball, run Homeport's `deploy/install.sh`, verify healthz |
 | `hpm update [m\|--all] [--version]` | **Automatic backup first**, then the idempotent install pipeline |
-| `hpm backup [m\|--all]` | Archive `/etc/homeport` + `/var/lib/homeport` (SQLite-safe) — kept on the machine (3) **and** on the Mac (`~/HomePortBackups/<m>/`, 10) |
+| `hpm backup now [m\|--all]` | Archive `/etc/homeport` + `/var/lib/homeport` (SQLite-safe) right now — kept on the machine (3) **and** on the Mac (`~/HomePortBackups/<m>/`, 10) |
+| `hpm backup apply <m> [--schedule expr] [--retention n]` | Declare/update the job (`~/.config/hpm/jobs/<m>.yaml`) and deploy it idempotently as `homeport-backup.service`/`.timer` — an autonomous root script that backs up on schedule, Mac reachable or not (precondition: passwordless sudo). Kept on the machine only (retention 3 by default) — these archives don't sync to the Mac yet (story 3.2) |
 | `hpm restore <m> [--archive f]` | Restore config + data (newest local archive by default), restart, verify — works across machines |
 | `hpm config pull/diff/push <m> [file]` | Edit `services.yaml` & co locally, diff before pushing; no restart needed |
 | `hpm remove <m>` | Final backup, then complete uninstall (type the machine name to confirm) |
@@ -72,8 +73,11 @@ Trilingual UI (French, English, Chinese).
 - [ ] Epic 2 — events and metrics: v1 API contract shipped and live on a test machine; the
       event feed client, notifications and historised metric charts are not built yet
 - [ ] Epic 3 — scheduled backups, integrated shell; the Updates tab (installed version vs.
-      latest tagged release, guided update) is built (`feat/3-3-gestion-des-mises-a-jour`,
-      pending review), taken out of order ahead of scheduled backups
+      latest tagged release, guided update) is built, taken out of order ahead of scheduled
+      backups. `hpm backup apply` (story 3.1) deploys the Pi-side scheduled-backup job —
+      `homeport-backup.service`/`.timer` + an autonomous root script that backs up on
+      schedule, Mac reachable or not — kit + CLI only; the Backups tab and archive
+      consolidation (story 3.2) and the integrated shell (3.4) remain
 
 ## Design notes
 

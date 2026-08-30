@@ -1,3 +1,7 @@
+- source_spec: `docs/build/spec-3-1-déploiement-des-jobs-de-backup-planifiés.md`
+  summary: Le check de drift `hpm doctor` (déclaré vs units réellement installées, 4e AC d'epics.md story 3.1) est retiré du périmètre pour resserrer la spec sous le budget de tokens.
+  evidence: Spec initiale ~2000 tokens (au-dessus des 1600 recommandés). Le check de drift dépend de l'existence du job/déploiement mais ne bloque pas la valeur centrale (le Pi se sauvegarde tout seul, Mac éteint) — détachable proprement, contrairement au format de définition, au déploiement idempotent ou au script Pi autonome qui sont mutuellement couplés. À réintégrer dans une story de suivi une fois 3.1 livrée, en suivant le pattern `configDiff`-gated déjà utilisé dans `Manager+Doctor.swift`.
+
 - source_spec: `docs/build/spec-1-1-fenêtre-centre-de-contrôle-et-tableau-de-bord-global.md`
   summary: App/Sources n'est pas dans le graphe SwiftPM, donc son code n'est couvert par aucun test unitaire.
   evidence: Package.swift ne déclare que HomePortKit, hpm et HomePortKitTests. MachineBlockStore (persistance UserDefaults), FleetModel (écriture des caches lastReachableStatus/lastSeenAt) et Color(hex:) n'ont aucun test possible. La moitié « jamais compilé » est close depuis le 24/08 — le gate de vérification du loop lance xcodegen + xcodebuild après swift test — mais compiler n'est pas tester : la logique de ces trois types reste sans assertion. Piste : l'extraire vers HomePortKit, comme MachineBlock, FleetRow et MachineIssue.
@@ -13,6 +17,18 @@
 - source_spec: `docs/build/spec-1-1-fenêtre-centre-de-contrôle-et-tableau-de-bord-global.md`
   summary: Aucune typographie dynamique — l'interface ne peut pas honorer un réglage de taille de texte agrandi.
   evidence: Theme.sans/mono construisent leurs Font en .custom(_, fixedSize:) ou .system(size:), et Metrics.tableRowHeight = 26, les largeurs de colonnes 55-100 px, frame(width: 170) des libellés de résumé et les lineLimit(1) généralisés figent la mise en page.
+
+- source_spec: `docs/build/spec-3-1-déploiement-des-jobs-de-backup-planifiés.md`
+  summary: Le message d'échec de déploiement du job de backup peut se terminer par « failed: » sans aucun contenu diagnostique quand stderr distant est vide.
+  evidence: `Manager+BackupJob.swift:36-37` n'a pas de repli sur le code de sortie. `Manager+Install.swift` a exactement le même défaut (`"install of \(tag) on \(machine.name) failed:\n\(tail)"`, sans repli non plus) — pas une régression propre à cette story, motif préexistant partagé par les deux sites.
+
+- source_spec: `docs/build/spec-3-1-déploiement-des-jobs-de-backup-planifiés.md`
+  summary: `HOMEPORT_DATA_DIR` contenant un espace est tronqué par le word-splitting bash dans le script de backup planifié.
+  evidence: `Manager+BackupJob.swift:129` découpe `$env_output` sur l'IFS par défaut (espace/tab/newline). Faiblesse identique déjà présente dans l'équivalent Swift `dataDir(on:)` (`Manager+Backup.swift:18-26`, qui découpe aussi sur espace/newline) — porté fidèlement « warts inclus », conformément au Spec Change Log de cette story qui assume ce choix pour le contenu métier repris de `performBackup`.
+
+- source_spec: `docs/build/spec-3-1-déploiement-des-jobs-de-backup-planifiés.md`
+  summary: Les noms de machine ne sont jamais validés nulle part dans le code — `BackupJobStore.path(for:)` hérite d'un trou préexistant plutôt que de l'introduire.
+  evidence: `MachineCmd.Add` (Sources/hpm/Commands.swift) n'impose aucune contrainte de caractères sur le nom de machine, et `localBackupDir(for:)` (`Manager+Backup.swift:13`) interpole déjà `machineName` dans un chemin sans validation, exactement comme `BackupJobStore.swift:30-32`.
 
 ### DW-1: Aucun test n'exécute la couche CLI (dont TasksCmd) : le câblage --machine/--limit/--id vers HistoryStore n'est vérifié que par les tests kit et un contrôle manuel.
 origin: spec-deferred 759e54980b3f

@@ -14,7 +14,7 @@ extension HomeportManager {
         } else if let latest = latestLocalBackup(for: machine.name) {
             archivePath = latest
         } else {
-            throw HPMError("no local backup found for '\(machine.name)' in \(localBackupDir(for: machine.name)) — run: hpm backup \(machine.name)")
+            throw HPMError("no local backup found for '\(machine.name)' in \(localBackupDir(for: machine.name)) — run: hpm backup now \(machine.name)")
         }
 
         report("Restoring \((archivePath as NSString).lastPathComponent) on \(machine.name)…")

@@ -13,6 +13,9 @@ public final class HomeportManager {
     public let releases: ReleaseService
     public let backupRoot: String
     public let configRoot: String
+    /// Where declared backup-job definitions live (story 3.1, F8) — schedule + retention,
+    /// never `hpm.db`, which only ever holds observed state.
+    public let jobsRoot: String
     let runner: ProcessRunner   // for local tools (diff); remote work goes through ssh
     public let report: Reporter
     /// nil when the state directory is unusable: the journal degrades, actions never block.
@@ -23,6 +26,7 @@ public final class HomeportManager {
     public init(ssh: SSHClient, releases: ReleaseService,
                 backupRoot: String = "~/HomePortBackups",
                 configRoot: String = "~/.config/hpm/configs",
+                jobsRoot: String = BackupJobStore.defaultRoot,
                 runner: ProcessRunner = DefaultProcessRunner(),
                 history: HistoryStore? = nil,
                 report: @escaping Reporter = { print($0) }) {
@@ -30,6 +34,7 @@ public final class HomeportManager {
         self.releases = releases
         self.backupRoot = expandPath(backupRoot)
         self.configRoot = expandPath(configRoot)
+        self.jobsRoot = expandPath(jobsRoot)
         self.runner = runner
         self.history = history
         // The journal's output is the report stream — the one narrative channel every
