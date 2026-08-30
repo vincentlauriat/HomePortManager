@@ -18,6 +18,11 @@ final class FleetModel: ObservableObject {
     /// previous value; a successful one always overwrites this with the just-fetched
     /// release's notes, nil included, so a release published without notes clears it.
     @Published var latestReleaseNotes: String?
+    /// True only after a releases fetch has actually thrown — distinct from `latestTag`
+    /// being nil before the very first cycle has resolved. The Updates tab needs this to
+    /// tell "not loaded yet" (show the installed version, say nothing about updates) from
+    /// "GitHub unreachable" (a real empty state) instead of conflating both into one.
+    @Published var releasesUnavailable = false
     @Published var refreshing = false
     /// The in-flight action per machine — what banner, buttons and menubar all observe.
     /// One entry per machine at most: the kit's inter-process lock refuses the rest, this
@@ -270,6 +275,9 @@ final class FleetModel: ObservableObject {
                 if let latest {
                     self.latestTag = latest.tag
                     self.latestReleaseNotes = latest.notes
+                    self.releasesUnavailable = false
+                } else {
+                    self.releasesUnavailable = true
                 }
                 self.refreshing = false
             }

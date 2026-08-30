@@ -244,3 +244,13 @@ source_spec: `spec-2-3-métriques-historisées.md`
 severity: low
 reason: Quand l'utilisateur change de plage (ex. 24h → 1y) et que le fetch de la nouvelle fenêtre échoue (`.unreachable`), `MetricsFeed.apply` continue d'afficher la fenêtre de l'ancienne plage plutôt que de refléter l'échec ou de vider l'affichage — l'utilisateur peut croire à tort qu'il regarde des données de la plage sélectionnée. Aucun test app (App/Sources hors graphe SwiftPM, cf. DW-17/DW-21) ne couvre ce chemin. Piste : faire porter l'état `.unreachable` sur la plage demandée plutôt que de le faire retomber silencieusement sur la dernière fenêtre servie.
 status: open
+
+## Deferred from: code review of story-3.3 (2026-08-30)
+
+### DW-26: Le badge flèche de version du Résumé reste live, non stale-aware — le bug corrigé pour l'onglet Updates reste vivant sur la vue par défaut de la fiche machine.
+origin: code review story-3.3 (verification-gap layer)
+location: App/Sources/MachineDetailView.swift:83-85 (`issues`), 398-410 (`versionValue`)
+source_spec: `spec-3-3-gestion-des-mises-à-jour.md`
+severity: medium
+reason: `versionValue` affiche `display.status?.installedVersion` (stale-aware, dernière valeur connue) mais sa flèche « → cible » vient de `issues.availableUpdate`, dérivé de `machineIssues(model.statuses[machine.name], ...)` — le statut *live*, qui retombe à `[.unreachable]` (aucun `.updateAvailable`) dès que la machine est injoignable. Une machine injoignable avec une vraie mise à jour en retard affiche donc « à jour » sur le Résumé — exactement le bug que cette story a corrigé pour l'onglet Updates via `updateTarget(installed:latest:)` appelé contre `display.status`. Le Spec Change Log de la story 3.3 a explicitement scindé le périmètre (`machineIssues` = verdict live, onglet Updates = verdict stale-aware) plutôt que d'étendre le correctif au Résumé — décision assumée mais qui laisse la vue la plus visitée de la fiche machine avec l'incohérence d'origine. Piste : faire lire `versionValue` sur `updateTarget(installed: display.status?.installedVersion, latest: model.latestTag)` au lieu de `issues.availableUpdate`, comme l'onglet Updates.
+status: open

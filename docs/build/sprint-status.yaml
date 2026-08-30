@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-23-2026 14:45
-last_updated: 08-30-2026
+last_updated: 08-30-2026 18:05
 project: HomePortManager
 project_key: NOKEY
 tracking_system: file-system
@@ -44,7 +44,7 @@ development_status:
   1-5-logs-centralisés: done
   epic-1-retrospective: done
 
-  epic-2: in-progress
+  epic-2: done
   2-1-contrat-api-v1-et-flux-d-événements: done
   2-2a-flux-d-événements-et-onglet-événements: done
   2-2b-notifications-critiques-et-politique-de-repli: done
@@ -54,7 +54,7 @@ development_status:
   epic-3: in-progress
   3-1-déploiement-des-jobs-de-backup-planifiés: backlog
   3-2-consolidation-des-archives-et-vue-des-jobs: backlog
-  3-3-gestion-des-mises-à-jour: review
+  3-3-gestion-des-mises-à-jour: in-progress
   3-4-shell-intégré: backlog
   epic-3-retrospective: optional
 action_items:
@@ -95,10 +95,10 @@ action_items:
   - id: "epic-1-retro-item-6-traiter-le-lancement-de-l-application-co"
     epic: 1
     action: "Traiter le lancement de l'application comme une étape de vérification
-      à part entière. PARTIEL au 24/08 : Scripts/render-probe rend un composant
-      isolé dans une vraie fenêtre et le capture, sans geste humain — mais ne dit
-      rien de la façon dont ce composant s'insère dans la fenêtre, là où vivait le
-      rognage du bandeau. Reste ouvert."
+      à part entière. PARTIEL au 24/08 : Scripts/render-probe rend un composant isolé
+      dans une vraie fenêtre et le capture, sans geste humain — mais ne dit rien de
+      la façon dont ce composant s'insère dans la fenêtre, là où vivait le rognage
+      du bandeau. Reste ouvert."
     owner: "Vincent"
     status: open
     ref: "Scripts/render-probe/run.sh"

@@ -27,9 +27,18 @@ struct UpdatesTabView: View {
         /// No observation of this machine has ever landed — matches the I/O matrix's
         /// "machine injoignable" row (`model.statuses[machine.name]` absent).
         case unreachable
-        /// `ReleaseService.list()`/`.latest()` failed (or has not resolved yet): no tag to
-        /// compare against, so no update can be proposed either way.
+        /// `ReleaseService.list()`/`.latest()` has genuinely thrown: no tag to compare
+        /// against, so no update can be proposed either way.
         case releasesUnavailable
+        /// The machine answered but the releases fetch hasn't resolved yet (first cycle in
+        /// flight) — distinct from `releasesUnavailable`, so a reachable machine still shows
+        /// its installed version instead of a spurious error empty-state.
+        case checkingReleases(installed: String)
+        /// `installedVersion == "unknown"` — the parser's marker for "unreadable," never a
+        /// version to compare against (`updateTarget` refuses it too). Kept distinct from
+        /// `.upToDate` so a machine whose version genuinely couldn't be read never shows the
+        /// green "up to date" badge.
+        case versionUnknown
         case upToDate(installed: String)
         case available(installed: String, target: String)
     }
@@ -44,7 +53,12 @@ struct UpdatesTabView: View {
     /// staleness.
     private var state: State {
         guard let status = display.status else { return .unreachable }
-        guard let latest = model.latestTag else { return .releasesUnavailable }
+        guard let latest = model.latestTag else {
+            return model.releasesUnavailable
+                ? .releasesUnavailable
+                : .checkingReleases(installed: status.installedVersion)
+        }
+        guard status.installedVersion != "unknown" else { return .versionUnknown }
         if let target = updateTarget(installed: status.installedVersion, latest: latest) {
             return .available(installed: status.installedVersion, target: target)
         }
@@ -79,6 +93,15 @@ struct UpdatesTabView: View {
                 EmptyStateView(
                     title: "Releases unavailable",
                     message: "GitHub unreachable — latest version unknown",
+                    actionTitle: "Retry", action: { model.refresh() })
+            case .checkingReleases(let installed):
+                if isStale { StaleDataNotice(model: model) }
+                versionRow(installed: installed, target: nil)
+            case .versionUnknown:
+                if isStale { StaleDataNotice(model: model) }
+                EmptyStateView(
+                    title: "Version unknown",
+                    message: "The installed version could not be read.",
                     actionTitle: "Retry", action: { model.refresh() })
             case .upToDate(let installed):
                 if isStale { StaleDataNotice(model: model) }
@@ -115,6 +138,10 @@ struct UpdatesTabView: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            target != nil
+                ? Text("Installed \(installed), update to \(target ?? "")")
+                : Text("Installed \(installed)"))
     }
 
     private var upToDateBadge: some View {
@@ -142,10 +169,16 @@ struct UpdatesTabView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Falls back to the raw source on a parse failure rather than hiding the notes —
-    /// unrendered Markdown is still more useful than nothing.
+    /// `.inlineOnlyPreservingWhitespace`, not the default: GitHub release bodies are
+    /// line-per-change prose, and the default parsing mode treats a single `\n` as a soft
+    /// break and collapses it to a space — turning a multi-line changelog into one run-on
+    /// paragraph. This keeps line breaks literal instead. Falls back to the raw source on a
+    /// parse failure rather than hiding the notes — unrendered Markdown is still more useful
+    /// than nothing.
     private func renderedNotes(_ notes: String) -> AttributedString {
-        (try? AttributedString(markdown: notes)) ?? AttributedString(notes)
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: notes, options: options)) ?? AttributedString(notes)
     }
 
     private var updateButton: some View {

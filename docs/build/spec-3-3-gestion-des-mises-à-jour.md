@@ -2,7 +2,7 @@
 title: 'Gestion des mises à jour'
 type: 'feature'
 created: '2026-08-26'
-status: 'done'
+status: 'in-progress'
 review_loop_iteration: 1
 context: ['{project-root}/docs/build/epic-3-context.md']
 baseline_commit: '3ed0e0c8c7d0485d3720ea5e45923dace7407d08'
@@ -121,6 +121,36 @@ story.
   sont désactivés le temps de la mutation, et le résultat atterrit dans le journal des tâches.
 - Given le CLI, when `hpm releases` et `hpm update <machine>` s'exécutent, then leur
   comportement existant (verrou, journal, confirmation) est inchangé.
+
+### Review Findings
+
+- [x] [Review][Decision→Patch] `.releasesUnavailable` conflate « pas encore chargé » et « échec du
+      fetch », masquant la version installée d'une machine par ailleurs joignable. **Résolu** :
+      `FleetModel.releasesUnavailable` (nouveau `@Published`) distingue désormais « le dernier
+      fetch a réellement levé » de « pas encore résolu » ; `UpdatesTabView.State` gagne un cas
+      `.checkingReleases(installed:)` qui affiche la version installée sans revendiquer de
+      verdict de mise à jour. [`App/Sources/FleetModel.swift`, `App/Sources/UpdatesTabView.swift`]
+- [x] [Review][Patch] `.upToDate(installed: "unknown")` était atteignable — badge « à jour » trompeur
+      pour une machine dont la version n'a pas pu être lue. **Résolu** : nouveau cas
+      `.versionUnknown`, intercepté avant la comparaison, routé vers un empty state dédié
+      [`App/Sources/UpdatesTabView.swift`]
+- [x] [Review][Patch] Les notes de release perdaient leur structure (sauts de ligne) au rendu —
+      `AttributedString(markdown:)` par défaut traite `\n` comme un soft break et le collapse en
+      espace. **Résolu** : parsing explicite `.inlineOnlyPreservingWhitespace`
+      [`App/Sources/UpdatesTabView.swift`]
+- [x] [Review][Patch] Le commentaire au-dessus de `content` promettait un échec visible sur un
+      invariant de routage rompu, mais les deux branches du switch retombaient silencieusement sur
+      un rendu vide. **Résolu** : `assertionFailure` ajouté aux deux branches
+      [`App/Sources/MachineDetailView.swift`]
+- [x] [Review][Patch] `versionRow` n'avait pas de libellé d'accessibilité descriptif. **Résolu** :
+      `accessibilityLabel` explicite (« Installed X » / « Installed X, update to Y »)
+      [`App/Sources/UpdatesTabView.swift`]
+- [x] [Review][Defer] Le badge flèche de version du Résumé (`versionValue`/`issues.availableUpdate`)
+      utilise toujours le verdict live, non stale-aware — le bug exact que cette story a corrigé pour
+      l'onglet Updates (une machine injoignable avec du retard réel affiche « à jour ») reste vivant
+      sur la vue par défaut de la fiche machine [`App/Sources/MachineDetailView.swift:83-85,398-410`]
+      — deferred, pre-existing (hors du périmètre gelé de cette story, qui a explicitement scindé
+      `machineIssues`=verdict live / onglet Updates=verdict stale-aware dans le Spec Change Log)
 
 ## Spec Change Log
 

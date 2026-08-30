@@ -4331,6 +4331,101 @@
           }
         }
       }
+    },
+    "Version unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version unknown"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version inconnue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本未知"
+          }
+        }
+      },
+      "comment": "Updates tab title when the installed version marker could not be read (installedVersion == \"unknown\")."
+    },
+    "The installed version could not be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The installed version could not be read."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La version installée n'a pas pu être lue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取已安装的版本。"
+          }
+        }
+      }
+    },
+    "Installed %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version installée %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装 %@"
+          }
+        }
+      },
+      "comment": "UpdatesTabView versionRow accessibility label, no update available."
+    },
+    "Installed %@, update to %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed %@, update to %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version installée %@, mise à jour vers %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装 %@，可更新至 %@"
+          }
+        }
+      },
+      "comment": "UpdatesTabView versionRow accessibility label, update available."
     }
   },
   "version": "1.0"

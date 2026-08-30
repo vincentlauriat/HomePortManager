@@ -297,11 +297,15 @@ struct MachineDetailView: View {
         case .backups, .shell:
             if let pending = tab.pendingMessage {
                 EmptyStateView(title: tab.title, message: pending)
+            } else {
+                let _ = assertionFailure("\(tab) has no pendingMessage and no real content — content(for:) needs a case")
+                EmptyView()
             }
         // The three that fill the sheet never reach this branch — `fillsSheet` routes them
         // to `fullTab` — but they are named rather than defaulted, so a tab that stops
         // filling the sheet has to answer this question explicitly.
         case .dashboard, .logs, .events:
+            let _ = assertionFailure("\(tab) should have been routed to fullTab by fillsSheet")
             EmptyView()
         }
     }
