@@ -35,7 +35,8 @@ extension HomeportManager {
         let lastBackup = latestLocalBackup(for: machine.name).map { ($0 as NSString).lastPathComponent }
         let command = """
         cat \(RemotePaths.versionMarker) 2>/dev/null; echo ::; \
-        systemctl is-active \(RemotePaths.unit) 2>/dev/null; echo ::; \
+        if command -v systemctl >/dev/null 2>&1; then systemctl is-active \(RemotePaths.unit) 2>/dev/null; \
+        else launchctl print "gui/$(id -u)/\(RemotePaths.launchdLabel)" 2>/dev/null | grep -q 'state = running' && echo active || echo inactive; fi; echo ::; \
         curl -fsS -m 5 http://localhost:\(machine.port)/healthz >/dev/null 2>&1 && echo OK || echo FAIL; echo ::; \
         TS=$(systemctl show \(RemotePaths.unit) -p ActiveEnterTimestamp --value 2>/dev/null); \
         { [ -n "$TS" ] && date -d "$TS" +%s >/dev/null 2>&1 && echo $(( $(date +%s) - $(date -d "$TS" +%s) )); } || echo ''; echo ::; \
