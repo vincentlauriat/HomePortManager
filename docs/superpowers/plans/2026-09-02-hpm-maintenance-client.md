@@ -447,14 +447,75 @@ public enum ExploitAction: Equatable, Sendable {
     }
 }
 
+/// Une valeur JSON quelconque. Le `detail` du serveur est hétérogène — listes de paquets,
+/// booléens, `null` — donc `[String: String]` ne le décode pas. Le client le transporte sans
+/// l'interpréter (AD-4) et se contente de savoir l'afficher.
+public enum JSONValue: Equatable, Sendable, Decodable {
+    case string(String), number(Double), bool(Bool), null
+    case array([JSONValue]), object([String: JSONValue])
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .null }
+        else if let v = try? c.decode(Bool.self) { self = .bool(v) }
+        else if let v = try? c.decode(Double.self) { self = .number(v) }
+        else if let v = try? c.decode(String.self) { self = .string(v) }
+        else if let v = try? c.decode([JSONValue].self) { self = .array(v) }
+        else if let v = try? c.decode([String: JSONValue].self) { self = .object(v) }
+        else {
+            throw DecodingError.dataCorruptedError(in: c, debugDescription: "valeur JSON non reconnue")
+        }
+    }
+}
+
+public extension Dictionary where Key == String, Value == JSONValue {
+    /// Les lignes qu'une interface affiche pour un `detail` : une par valeur scalaire, une par
+    /// élément de liste. L'ordre des clés est stable pour que l'affichage ne saute pas.
+    var displayLines: [String] {
+        keys.sorted().flatMap { key -> [String] in
+            switch self[key] {
+            case .array(let items): return items.map { "\(key): \($0.displayText)" }
+            case .some(let value): return ["\(key): \(value.displayText)"]
+            case nil: return []
+            }
+        }
+    }
+}
+
+public extension JSONValue {
+    var displayText: String {
+        switch self {
+        case .string(let s): return s
+        case .number(let n): return n == n.rounded() ? String(Int(n)) : String(n)
+        case .bool(let b): return b ? "oui" : "non"
+        case .null: return "—"
+        case .array(let items): return items.map(\.displayText).joined(separator: ", ")
+        case .object(let o): return o.displayLines.joined(separator: " · ")
+        }
+    }
+}
+
 /// Le résultat métier d'un dry-run ou d'une exécution. `ok` est indépendant du code HTTP.
 public struct ExploitResult: Equatable, Sendable {
     public let ok: Bool
     public let message: String
     /// Transporté tel quel : le client ne décide pas de sa forme (AD-4).
-    public let detail: [String: String]
+    public let detail: [String: JSONValue]
     /// Présent seulement sur un dry-run réussi.
     public let planID: String?
+}
+
+/// La forme décodée d'une réponse de dry-run ou d'exécution. Type nommé au niveau fichier —
+/// et non une struct locale à `post(...)` — parce que les tests le décodent directement.
+struct ExploitResultPayload: Decodable {
+    let ok: Bool
+    let message: String
+    let detail: [String: JSONValue]?
+    let plan_id: String?
+
+    var result: ExploitResult {
+        ExploitResult(ok: ok, message: message, detail: detail ?? [:], planID: plan_id)
+    }
 }
 
 public enum ExploitOutcome: Equatable, Sendable {
@@ -590,22 +651,15 @@ public struct ExploitAPIClient: Sendable {
         case 409: return .staleToken
         default: return .unavailable(.unreachable("HTTP \(reply.status)"))
         }
-        struct Payload: Decodable {
-            let ok: Bool
-            let message: String
-            let detail: [String: String]?
-            let plan_id: String?
-        }
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: reply.body) else {
+        guard let payload = try? JSONDecoder().decode(ExploitResultPayload.self, from: reply.body) else {
             return .unavailable(.unreachable("réponse illisible"))
         }
-        return .completed(ExploitResult(ok: payload.ok, message: payload.message,
-                                        detail: payload.detail ?? [:], planID: payload.plan_id))
+        return .completed(payload.result)
     }
 }
 ```
 
-> **Note d'implémentation sur `detail`** : le serveur renvoie un objet aux valeurs hétérogènes (listes de paquets, booléens, `null`). `[String: String]` ne le décodera pas tel quel. L'implémenteur ajoute un petit type `JSONValue` `Decodable` (cas `string`, `number`, `bool`, `null`, `array`, `object`) et type `detail` en `[String: JSONValue]`, avec une propriété `displayLines: [String]` pour l'affichage. **Écrire d'abord le test qui décode le `detail` réel d'un dry-run `apt-update`** (`{"packages": ["chromium/stable 1.2 arm64", …]}`) et le voir échouer.
+> **Note sur `detail`** : le serveur renvoie un objet aux valeurs hétérogènes — listes de paquets, booléens, `null`. C'est pourquoi `JSONValue` et `ExploitResultPayload` ci-dessus existent, et pourquoi `ExploitResult.detail` est `[String: JSONValue]` et non `[String: String]`. Les paramètres **envoyés** (`ExploitAction.parameters`, le corps de `post`) restent `[String: String]` : ceux-là sont bien tous des chaînes. **Écrire d'abord le test qui décode le `detail` réel d'un dry-run `apt-update`** (`{"packages": ["chromium/stable 1.2 arm64", …]}`) et le voir échouer.
 
 - [ ] **Step 4: Écrire les tests des trois lectures et de l'initialiseur faillible**
 
@@ -659,12 +713,8 @@ Les trois lectures suivent le même motif que `capabilities(of:)` : `endpoint(..
 `JSONValue` est un `enum Decodable` à six cas (`string`, `number`, `bool`, `null`, `array`,
 `object`) ; `displayLines` aplatit récursivement en lignes lisibles.
 
-**`ExploitResultPayload` doit exister comme type nommé**, pas comme `struct Payload` locale à
-`post(...)` : le test `testAptUpdateDetailRendersItsPackageList` le décode directement. Le
-déclarer au niveau du fichier, `Decodable`, `internal` (visible de `@testable import`), avec
-les champs `ok`, `message`, `detail: [String: JSONValue]?`, `plan_id: String?` et une
-propriété calculée `var result: ExploitResult`. `post(...)` s'en sert au lieu de sa struct
-locale — une seule définition du décodage, testable directement. **Écrire le test
+`JSONValue`, son `displayLines` et `ExploitResultPayload` sont **déjà écrits en entier** au
+step 3 : les transcrire, ne pas les réinventer. **Écrire le test
 `testAptUpdateDetailRendersItsPackageList` en premier et le voir échouer** : c'est lui qui
 prouve que `[String: String]` ne suffisait pas.
 
