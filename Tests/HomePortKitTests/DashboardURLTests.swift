@@ -89,4 +89,12 @@ final class DashboardURLTests: XCTestCase {
         XCTAssertEqual(url(ssh: "pi@raspyellow", port: 1), "http://raspyellow:1/")
         XCTAssertEqual(url(ssh: "pi@raspyellow", port: 65535), "http://raspyellow:65535/")
     }
+
+    func testAPIHostStripsUserPrefix() {
+        XCTAssertEqual(apiHost(for: Machine(name: "y", ssh: "vincent@raspyellow", port: 80)), "raspyellow")
+    }
+
+    func testAPIHostRejectsShellMetacharacters() {
+        XCTAssertNil(apiHost(for: Machine(name: "x", ssh: "host;rm -rf /", port: 80)))
+    }
 }

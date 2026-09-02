@@ -13,8 +13,10 @@ import Foundation
 /// sub-delimiter (`& ; , + = …`): `URLComponents` would carry those through into a
 /// syntactically valid address that names no machine (`host:port` suffixes and IPv6
 /// literals among them, neither of which is a fleet.yaml identity).
-public func dashboardURL(for machine: Machine) -> URL? {
-    guard (1...65535).contains(machine.port) else { return nil }
+/// L'hôte joignable d'une machine, dérivé de sa cible SSH : le préfixe `user@` retiré
+/// (`vincent@raspyellow` → `raspyellow`), puis validé contre une allowlist de caractères.
+/// Partagé par les deux clients HTTP du dépôt : une seule dérivation, une seule allowlist.
+public func apiHost(for machine: Machine) -> String? {
     let target = machine.ssh
     let host: String
     if let at = target.lastIndex(of: "@") {
@@ -24,8 +26,12 @@ public func dashboardURL(for machine: Machine) -> URL? {
     }
     let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz"
                                + "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.")
-    guard !host.isEmpty, host.rangeOfCharacter(from: allowed.inverted) == nil
-    else { return nil }
+    guard !host.isEmpty, host.rangeOfCharacter(from: allowed.inverted) == nil else { return nil }
+    return host
+}
+
+public func dashboardURL(for machine: Machine) -> URL? {
+    guard (1...65535).contains(machine.port), let host = apiHost(for: machine) else { return nil }
     var components = URLComponents()
     components.scheme = "http"
     components.host = host

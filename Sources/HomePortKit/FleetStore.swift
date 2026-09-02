@@ -6,12 +6,16 @@ public struct Machine: Codable, Equatable {
     public var ssh: String
     public var port: Int
     public var notes: String?
+    /// Le port de HomePortExploit sur cette machine. `nil` — la clé absente du YAML —
+    /// signifie que le service n'y est pas déployé : un état neutre, jamais une panne.
+    public var exploitPort: Int?
 
-    public init(name: String, ssh: String, port: Int = 80, notes: String? = nil) {
+    public init(name: String, ssh: String, port: Int = 80, notes: String? = nil, exploitPort: Int? = nil) {
         self.name = name
         self.ssh = ssh
         self.port = port
         self.notes = notes
+        self.exploitPort = exploitPort
     }
 }
 
