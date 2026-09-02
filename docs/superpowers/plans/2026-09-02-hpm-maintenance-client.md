@@ -461,6 +461,12 @@ public enum ExploitOutcome: Equatable, Sendable {
     case completed(ExploitResult)
     /// 409 : jeton requis, expiré ou déjà consommé. Sa réponse est « refaire le dry-run »,
     /// jamais un renouvellement silencieux — qui exécuterait sans avoir rien montré.
+    ///
+    /// Un jeton est brûlé par la **tentative**, pas par le succès : `pending.consume()`
+    /// marque `used=1` avant de vérifier que l'action et les paramètres correspondent.
+    /// Un `execute` envoyé avec des paramètres valides mais différents de ceux prévisualisés
+    /// consomme donc le jeton **et** échoue. Corollaire pour ce client : ne jamais rejouer
+    /// un `plan_id` avec d'autres paramètres, et traiter tout 409 comme définitif.
     case staleToken
     case unavailable(ExploitAvailability)
 }
@@ -651,7 +657,14 @@ Les trois lectures suivent le même motif que `capabilities(of:)` : `endpoint(..
 `limit` en `URLQueryItem` et mappe `dry_run` → `dryRun`.
 
 `JSONValue` est un `enum Decodable` à six cas (`string`, `number`, `bool`, `null`, `array`,
-`object`) ; `displayLines` aplatit récursivement en lignes lisibles. **Écrire le test
+`object`) ; `displayLines` aplatit récursivement en lignes lisibles.
+
+**`ExploitResultPayload` doit exister comme type nommé**, pas comme `struct Payload` locale à
+`post(...)` : le test `testAptUpdateDetailRendersItsPackageList` le décode directement. Le
+déclarer au niveau du fichier, `Decodable`, `internal` (visible de `@testable import`), avec
+les champs `ok`, `message`, `detail: [String: JSONValue]?`, `plan_id: String?` et une
+propriété calculée `var result: ExploitResult`. `post(...)` s'en sert au lieu de sa struct
+locale — une seule définition du décodage, testable directement. **Écrire le test
 `testAptUpdateDetailRendersItsPackageList` en premier et le voir échouer** : c'est lui qui
 prouve que `[String: String]` ne suffisait pas.
 
@@ -682,8 +695,11 @@ git commit -m "feat: add ExploitAPIClient with request-level injection seam"
 
 **Files:**
 - Modify: `Sources/HomePortKit/Manager+Journal.swift` (surcharge `async` de `journaled`)
+- Modify: `Sources/HomePortKit/Manager+Prereqs.swift:11-40` — c'est là que `HomeportManager` est **déclarée** (malgré le nom du fichier). Y ajouter `public let exploit: ExploitAPIClient` et le paramètre d'init correspondant, avec `ExploitAPIClient()` par défaut, sur le modèle de `runner` et `history`.
 - Create: `Sources/HomePortKit/Manager+Maintenance.swift`
 - Test: `Tests/HomePortKitTests/ManagerMaintenanceTests.swift`
+
+> **La propriété du journal s'appelle `history`, pas `historyStore`** (`public let history: HistoryStore?`, nullable — le journal se dégrade, il ne bloque jamais l'action). Les squelettes de test ci-dessous emploient `historyStore` : c'est un nom d'emprunt à corriger.
 
 **Interfaces:**
 - Consumes: tâche 3.
