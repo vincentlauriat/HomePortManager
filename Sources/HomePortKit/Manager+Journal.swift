@@ -117,6 +117,82 @@ extension HomeportManager {
         }
     }
 
+    /// The same seam for an `async` body — the maintenance actions delegated to
+    /// HomePortExploit (Manager+Maintenance.swift) reach the Pi over HTTP, not SSH.
+    ///
+    /// Deliberately a duplicate of the synchronous body rather than a shared trunk: the
+    /// synchronous path is pinned by `JournalSeamTests`, and factoring the two together
+    /// would put that coverage at risk for no behaviour gained. Every statement below is
+    /// the synchronous one; only the two `body()` calls become `try await body()`. Nothing
+    /// inside a `defer` suspends, which is what lets the scoping survive the port.
+    ///
+    /// One semantic *does* shift, and it is not fixed here: under `async`, `journal`'s
+    /// depth stops meaning "nesting" and starts meaning "in flight on this manager".
+    /// Two maintenance actions launched concurrently on the *same* manager would see
+    /// depth > 0 and run the second one bare — no journal, no lock. Every current caller
+    /// is one action at a time (the CLI, and one manager per machine in `forEachMachine`),
+    /// exactly the invariant `JournalState` already documents; a task-local depth would
+    /// be the fix, and it would touch the synchronous path.
+    func journaled<T>(_ action: String, on machine: Machine, locking: Bool,
+                      _ body: () async throws -> T) async throws -> T {
+        guard let history else { return try await body() }
+        let depthBefore = journal.enter()
+        defer { journal.exit() }
+        guard depthBefore == 0 else { return try await body() }
+
+        let pid = getpid()
+        // The release is scoped to this exact acquisition (machine, pid, acquired_at):
+        // if this action overruns the TTL and this same process reacquires the lock,
+        // the late `defer` must not free the reacquired one.
+        var lockStamp: Date?
+        if locking {
+            do {
+                let stamp = Date()
+                try history.acquireLock(machine: machine.name, pid: pid, now: stamp)
+                lockStamp = stamp
+            } catch let contention as LockContentionError {
+                // The refusal the user must see — rethrown before any journal write.
+                throw contention
+            } catch {
+                warnLockUnavailable(error)
+            }
+        }
+        defer {
+            if let lockStamp {
+                do { try history.releaseLock(machine: machine.name, pid: pid, acquiredAt: lockStamp) }
+                catch { warnLockStuck(machine.name, error) }
+            }
+        }
+
+        let id: Int64?
+        do {
+            id = try history.begin(action: action, machine: machine.name)
+        } catch {
+            id = nil
+            warnJournalWriteFailure(error)
+        }
+        if lockStamp != nil, let id {
+            do { try history.attachTask(machine: machine.name, pid: pid, taskID: id) }
+            catch { warnJournalWriteFailure(error) }
+        }
+        do {
+            let result = try await body()
+            if let id {
+                do { try history.finish(id: id, status: .success, output: journal.drain()) }
+                catch { warnJournalWriteFailure(error) }
+            }
+            return result
+        } catch {
+            if let id {
+                let captured = journal.drain()
+                let output = captured.isEmpty ? "\(error)" : "\(captured)\n\(error)"
+                do { try history.finish(id: id, status: .failure, output: output) }
+                catch { warnJournalWriteFailure(error) }
+            }
+            throw error
+        }
+    }
+
     private func warnJournalWriteFailure(_ error: Error) {
         FileHandle.standardError.write(Data("warning: task journal write failed — \(error)\n".utf8))
     }
