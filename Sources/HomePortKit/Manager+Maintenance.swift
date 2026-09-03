@@ -69,6 +69,12 @@ extension HomeportManager {
             return "action absente du catalogue de cette machine"
         case .unavailable(let state):
             return "indisponible — \(state)"
+        // A2 (tâche 6b) : ni "ok" ni "échec" — `isSuccess` ci-dessus renvoie `false` pour ce
+        // cas (même doctrine : « A tick in `hpm tasks` against an action that never ran is
+        // worse than no entry at all »), mais le texte du journal ne doit pas mentir en
+        // retour : le serveur est peut-être allé au bout, l'historique porte la vraie réponse.
+        case .executionTimedOut:
+            return "délai de transport dépassé — issue inconnue, voir l'historique de la machine"
         }
     }
 }

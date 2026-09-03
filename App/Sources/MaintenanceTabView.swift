@@ -40,6 +40,11 @@ struct MaintenanceTabView: View {
     /// `LastActionErrorView`'s `finding` headline reads "Last action reported problems", which
     /// would misdescribe a clean success. Server content, shown verbatim, never translated.
     @State private var maintenanceSuccess: String?
+    /// A2 (task 6b): a transport timeout during `execute` — the server may have gone all the
+    /// way despite the client giving up on the wait. No dynamic content (a timeout means no
+    /// reply was ever read), so a `Bool` is enough — unlike `maintenanceSuccess`, which carries
+    /// the server's own message.
+    @State private var maintenanceUncertain = false
 
     /// Disables every maintenance button while either lane mutates this machine: the kit's
     /// per-machine lock (AD-12) is shared with `FleetModel.run`'s own actions, so a Backup in
@@ -54,6 +59,9 @@ struct MaintenanceTabView: View {
             }
             if let maintenanceSuccess {
                 MaintenanceSuccessView(message: maintenanceSuccess)
+            }
+            if maintenanceUncertain {
+                MaintenanceUncertainView()
             }
             stateCard
             if case .available(let caps) = capabilities {
@@ -143,6 +151,7 @@ struct MaintenanceTabView: View {
         maintenanceBusy = true
         maintenanceReport = nil
         maintenanceSuccess = nil
+        maintenanceUncertain = false
         let target = machine
         Task {
             let result = await withExternalLock { await attempt(action, planID: nil, target: target) }
@@ -162,6 +171,12 @@ struct MaintenanceTabView: View {
                         kind: .failure, message: String(localized: "maintenance.unknownAction"))
                 case .unavailable(let state):
                     maintenanceReport = FleetModel.LastReport(kind: .failure, message: describe(state))
+                // A2 (task 6b): unreachable in practice — `maintenancePlan` always dry-runs,
+                // and `ExploitAPIClient.post` produces this outcome only for the `execute`
+                // phase (see `ExploitOutcome.executionTimedOut`). Kept for exhaustiveness and
+                // to stay correct if that invariant ever breaks.
+                case .executionTimedOut:
+                    maintenanceUncertain = true
                 }
             }
         }
@@ -182,6 +197,7 @@ struct MaintenanceTabView: View {
         maintenanceBusy = true
         maintenanceReport = nil
         maintenanceSuccess = nil
+        maintenanceUncertain = false
         Task {
             let result = await withExternalLock {
                 await attempt(plan.action, planID: planID, target: plan.machine)
@@ -206,17 +222,7 @@ struct MaintenanceTabView: View {
                         maintenanceReport = FleetModel.LastReport(kind: .finding, message: execResult.message)
                         maintenanceSuccess = nil
                     }
-                    // `reboot`/`poweroff` make the machine unreachable on purpose — the
-                    // expected result of the action just run, not a fault. Re-polling right
-                    // away would fold the whole tab onto the "Attention needed — unreachable
-                    // … Tailscale ACL" card, right under a success message, contradicting it.
-                    // Every other action leaves the machine reachable, so it still re-polls
-                    // (fix round 1, I2): History (and capabilities/config) then reflect the
-                    // just-run action without a manual reload.
-                    switch plan.action {
-                    case .reboot: break
-                    case .aptUpdate, .dockerUpdate: Task { await load() }
-                    }
+                    reloadUnlessRebooting(plan.action)
                 case .staleToken:
                     maintenanceReport = FleetModel.LastReport(
                         kind: .failure, message: String(localized: "maintenance.execute.staleToken"))
@@ -225,8 +231,35 @@ struct MaintenanceTabView: View {
                         kind: .failure, message: String(localized: "maintenance.unknownAction"))
                 case .unavailable(let state):
                     maintenanceReport = FleetModel.LastReport(kind: .failure, message: describe(state))
+                // A2 (task 6b): the server, unlike the client, goes all the way — plan_id
+                // consumed, audit line written, update actually run. Rendering this as a
+                // failure would reproduce I1 (task 6) one layer down; worse, a retry would hit
+                // `.staleToken`, prompt a fresh dry-run, and execute a second time (grave on
+                // docker-update: pull + recreate in flight). Neither `.failure` nor `.finding`
+                // fits — both say something went wrong, and this might not have — so this gets
+                // its own view (`MaintenanceUncertainView`), same doctrine as
+                // `MaintenanceSuccessView` (fix round 1, I2) getting its own rather than being
+                // forced into `LastReport.Kind`. Still re-polls (unless rebooting): the audit
+                // line the server may have written is exactly what "check the history" means.
+                case .executionTimedOut:
+                    maintenanceUncertain = true
+                    reloadUnlessRebooting(plan.action)
                 }
             }
+        }
+    }
+
+    /// Re-polls so History (and capabilities/config) pick up whatever the server actually
+    /// recorded — shared by a completed execution (fix round 1, I2) and by A2's uncertain
+    /// outcome (task 6b), since both cases: the server may have done something this client
+    /// hasn't seen yet. `reboot`/`poweroff` are the one exception — they make the machine
+    /// unreachable on purpose (or, for A2, plausibly did), and re-polling right away would
+    /// fold the whole tab onto the "unreachable … Tailscale ACL" card, under a report that
+    /// has nothing to do with it.
+    private func reloadUnlessRebooting(_ action: ExploitAction) {
+        switch action {
+        case .reboot: break
+        case .aptUpdate, .dockerUpdate: Task { await load() }
         }
     }
 
@@ -291,6 +324,7 @@ struct MaintenanceTabView: View {
                     // something to reload — ⌘R only refreshes the fleet's SSH poll
                     // (`ControlCenterView`), never this tab's own four reads, and leaving the
                     // tab and coming back is the only other way to get `.task` to run again.
+                    //
                     Button { Task { await load() } } label: { Text("Retry") }
                         .buttonStyle(PillButtonStyle(kind: .secondary))
                 }
@@ -631,6 +665,35 @@ private struct MaintenanceSuccessView: View {
         .overlay(
             RoundedRectangle(cornerRadius: Theme.Rounded.md)
                 .stroke(Theme.semanticSuccess.opacity(0.25), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A2's own box (task 6b): a transport timeout during `execute` — the server may have gone
+/// all the way despite the client giving up on the wait. Neither `LastActionErrorView`'s
+/// `.failure`/`.finding` (both say something went wrong; this might not have) nor
+/// `MaintenanceSuccessView` (no server message was ever received to show) fits, so this gets
+/// its own box, same doctrine as `MaintenanceSuccessView` itself (fix round 1, I2) — warning
+/// ink rather than success or critical: not a confirmed failure, not a confirmed success
+/// either. No dynamic content, unlike the other two: a timeout means no reply was ever read.
+private struct MaintenanceUncertainView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            Text("maintenance.execute.uncertain.title")
+                .styled(Theme.bodyStrong)
+                .foregroundStyle(Theme.semanticWarning)
+            Text("maintenance.execute.uncertain.detail")
+                .styled(Theme.body)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(Theme.body.lineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Rounded.md)
+                .stroke(Theme.semanticWarning.opacity(0.25), lineWidth: 1))
         .accessibilityElement(children: .combine)
     }
 }

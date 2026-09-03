@@ -4524,6 +4524,54 @@
         }
       }
     },
+    "maintenance.execute.uncertain.detail": {
+      "comment": "Task 6b (A2): a transport timeout during execute, not a decoded reply — the server may have gone all the way (plan_id consumed, audit line written, update actually done) even though the client gave up waiting. Points at the History section already on this tab, which carries the real answer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transport timed out during execution. The server may have finished the action anyway — check the history below."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le délai de transport a été dépassé pendant l'exécution. Le serveur a peut-être quand même terminé l'action — consultez l'historique ci-dessous."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行过程中传输超时。服务器可能仍然完成了该操作——请查看下方的历史记录。"
+          }
+        }
+      }
+    },
+    "maintenance.execute.uncertain.title": {
+      "comment": "Task 6b (A2) headline: distinct from MaintenanceSuccessView's \"Action completed\" (no confirmed success) and from LastActionErrorView's failure/finding kinds (no confirmed failure either) — the outcome is genuinely unknown.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outcome unknown"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Issue inconnue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果未知"
+          }
+        }
+      }
+    },
     "maintenance.history.empty": {
       "comment": "Maintenance tab history section when GET /audit answers with no entries for this machine.",
       "extractionState": "manual",

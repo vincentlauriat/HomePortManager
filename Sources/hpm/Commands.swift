@@ -689,6 +689,12 @@ struct MaintenanceCmd: AsyncParsableCommand {
         case .unavailable(let state):
             print(describe(state))
             return nil
+        // A2 (tâche 6b) : ce dénouement n'est produit que par la phase `execute`
+        // (ExploitAPIClient.post) — un dry-run ne peut jamais l'atteindre. Gardé pour
+        // l'exhaustivité et pour rester correct si cet invariant devait un jour se rompre.
+        case .executionTimedOut:
+            print("délai de transport dépassé — issue inconnue, voir l'historique de la machine")
+            return nil
         }
     }
 
@@ -767,6 +773,13 @@ struct MaintenanceCmd: AsyncParsableCommand {
                 throw ExitCode(1)
             case .unavailable(let state):
                 print(describe(state)); throw ExitCode(1)
+            // A2 (tâche 6b) : le serveur, lui, va au bout (plan_id consommé, ligne d'audit
+            // écrite, mise à jour réellement faite) — rendre ça comme un échec reproduirait
+            // I1 (tâche 6) un étage plus bas. On ne sait pas, donc on renvoie vers ce qui
+            // porte la réponse plutôt que d'inventer un verdict.
+            case .executionTimedOut:
+                print("délai de transport dépassé pendant l'exécution — issue inconnue : le serveur est peut-être allé au bout. Consultez « hpm maintenance history \(target.name) ».")
+                throw ExitCode(1)
             }
         }
     }
