@@ -311,7 +311,7 @@ struct MaintenanceTabView: View {
         // machine" (ExploitAPIContract.swift) — painting it as a warning would say the
         // opposite.
         case .notDeployed, .cancelled: return Theme.ink
-        case .unreachable, .unavailable: return Theme.semanticWarning
+        case .unreachable, .unexpectedResponse, .unavailable: return Theme.semanticWarning
         case .forbidden: return Theme.semanticCritical
         }
     }
@@ -321,7 +321,7 @@ struct MaintenanceTabView: View {
         case .available: return "maintenance.state.available"
         case .notDeployed: return "maintenance.state.notDeployed"
         case .cancelled: return "maintenance.state.cancelled"
-        case .unreachable, .unavailable: return "maintenance.state.attention"
+        case .unreachable, .unexpectedResponse, .unavailable: return "maintenance.state.attention"
         case .forbidden: return "maintenance.state.forbidden"
         }
     }
@@ -393,7 +393,7 @@ struct MaintenanceTabView: View {
                 .padding(Theme.Spacing.xl)
                 .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.lg))
                 .accessibilityElement(children: .combine)
-            case .unreachable, .unavailable, .forbidden:
+            case .unreachable, .unexpectedResponse, .unavailable, .forbidden:
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     statePill(capabilities)
                     Text(verbatim: describe(capabilities))
