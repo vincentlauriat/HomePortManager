@@ -192,6 +192,27 @@ final class ManagerMaintenanceTests: XCTestCase {
                      "une seule acquisition, une seule libération")
     }
 
+    /// L'autre sens de l'imbrication, et la raison pour laquelle la surcharge `async`
+    /// incrémente **aussi** le compteur du manager : une action **synchrone** imbriquée dans
+    /// un corps `async` doit composer, pas ouvrir sa propre entrée. Sans cet incrément elle
+    /// redemanderait le verrou que l'action englobante tient déjà — auto-contention.
+    func testSynchronousActionNestedInAnAsyncOneComposes() async throws {
+        let (manager, _) = makeManager(historyPath: dbPath) { _ in self.ok(self.runJSON) }
+
+        try await manager.journaled("outer", on: machine, locking: true) {
+            // Sans cette suspension, le corps est synchrone et Swift choisit l'AUTRE
+            // surcharge : le test ne dirait alors rien du seam `async`.
+            await Task.yield()
+            _ = try manager.backup(on: self.machine)
+        }
+
+        let history = try XCTUnwrap(manager.history)
+        XCTAssertEqual(try history.tasks().map(\.action), ["outer"],
+                       "le backup imbriqué ne journalise pas la sienne")
+        XCTAssertNil(try history.currentLock(machine: "raspcorse"),
+                     "une seule acquisition, une seule libération")
+    }
+
     /// L'autre moitié de la doctrine : seule la contention refuse. Une base vivante dont la
     /// mécanique de verrou casse en vol dégrade exactement comme le journal — un
     /// avertissement, et l'action tourne sans verrou.
