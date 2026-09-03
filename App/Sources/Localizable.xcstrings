@@ -4236,6 +4236,30 @@
         }
       }
     },
+    "maintenance.aptUpdate.cardTitle": {
+      "comment": "Fix round 1 (m4): apt-update card's own title, distinct from its button's — the two used to say the same thing twice.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System packages"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paquets système"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统软件包"
+          }
+        }
+      }
+    },
     "maintenance.config.notFound": {
       "comment": "Maintenance tab config section — GET /homeport-config/current answered 200 with no file (absent or unreadable on the Pi), never a raw error.",
       "extractionState": "manual",
@@ -4453,25 +4477,49 @@
       }
     },
     "maintenance.execute.staleToken": {
-      "comment": "Maintenance preview sheet — the confirmed execute answered 409: the plan_id is burned by the attempt, never replayed, and this is never shown as a raw error.",
+      "comment": "Maintenance preview sheet — the confirmed execute answered 409: the plan_id is burned by the attempt, never replayed, and this is never shown as a raw error. Fix round 1 (m1): matches MaintenanceCmd.Run.run()'s own wording word for word — the CLI's \"(jeton valable 5 minutes)\" had been dropped.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preview expired — run it again."
+            "value": "Preview expired (the plan is valid for 5 minutes) — run it again."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prévisualisation expirée — relancer la commande."
+            "value": "Prévisualisation expirée (jeton valable 5 minutes) — relancer la commande."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "预览已过期——请重新运行。"
+            "value": "预览已过期（计划令牌有效期为 5 分钟）——请重新运行。"
+          }
+        }
+      }
+    },
+    "maintenance.execute.success": {
+      "comment": "Fix round 1 (I2): headline of the box shown after a completed, ok:true execution — distinct from LastActionErrorView's two kinds, whose shared vocabulary ('reported problems') would misdescribe a clean success.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action completed"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action terminée"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作已完成"
           }
         }
       }
@@ -4496,6 +4544,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "此机器尚无维护操作记录。"
+          }
+        }
+      }
+    },
+    "maintenance.history.empty.title": {
+      "comment": "Fix round 1 (m5): the history empty state's own title, distinct from the section header above it — same pattern as MachineDetailView.recentTasks's \"No tasks yet\" under its own \"Recent tasks\" header.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No history"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun historique"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无历史"
           }
         }
       }
@@ -4808,6 +4880,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "可用"
+          }
+        }
+      }
+    },
+    "maintenance.state.cancelled": {
+      "comment": "Maintenance tab state pill (fix round 1, m2): the calling task vanished mid-request (a tab switch while `capabilities`/`audit`/etc. was in flight) — the contract is explicit this is never a signal on the machine, so it is neutral, not the unreachable/unavailable warning group.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not available right now"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non disponible pour l'instant"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时不可用"
           }
         }
       }

@@ -35,6 +35,11 @@ struct MaintenanceTabView: View {
     /// `model.lastError`: that dictionary belongs to `FleetModel.run`, and a maintenance
     /// action never runs through it (it has its own lane, its own busy flag, below).
     @State private var maintenanceReport: FleetModel.LastReport?
+    /// A completed, `ok:true` execution's own message (fix round 1, I2) — kept apart from
+    /// `maintenanceReport`: `FleetModel.LastReport.Kind` has only `failure`/`finding`, and
+    /// `LastActionErrorView`'s `finding` headline reads "Last action reported problems", which
+    /// would misdescribe a clean success. Server content, shown verbatim, never translated.
+    @State private var maintenanceSuccess: String?
 
     /// Disables every maintenance button while either lane mutates this machine: the kit's
     /// per-machine lock (AD-12) is shared with `FleetModel.run`'s own actions, so a Backup in
@@ -46,6 +51,9 @@ struct MaintenanceTabView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             if let maintenanceReport {
                 LastActionErrorView(report: maintenanceReport)
+            }
+            if let maintenanceSuccess {
+                MaintenanceSuccessView(message: maintenanceSuccess)
             }
             stateCard
             if case .available(let caps) = capabilities {
@@ -118,13 +126,26 @@ struct MaintenanceTabView: View {
 
     // MARK: - Actions
 
+    /// Marks the machine as externally locked for the duration of `body` (I4): `FleetModel.run`
+    /// checks `externalLock` before it would otherwise reach the kit's per-machine lock and
+    /// throw a raw `LockContentionError`. Cleared by the caller's own `Task`, which — unlike
+    /// `.task`'s task — is not cancelled when this view disappears (a tab switch mid-action),
+    /// so the lock always clears when the action truly finishes, never left stuck by a
+    /// navigation the in-flight `Task.detached` inside `attempt` does not even notice.
+    private func withExternalLock<T>(_ body: () async -> T) async -> T {
+        model.externalLock.insert(machine.name)
+        defer { model.externalLock.remove(machine.name) }
+        return await body()
+    }
+
     private func runPreview(_ action: ExploitAction) {
         guard !busy else { return }
         maintenanceBusy = true
         maintenanceReport = nil
+        maintenanceSuccess = nil
         let target = machine
         Task {
-            let result = await attempt(action, planID: nil, target: target)
+            let result = await withExternalLock { await attempt(action, planID: nil, target: target) }
             maintenanceBusy = false
             switch result {
             case .failed(let message):
@@ -132,7 +153,7 @@ struct MaintenanceTabView: View {
             case .outcome(let outcome):
                 switch outcome {
                 case .completed(let planResult):
-                    pendingPlan = PendingMaintenancePlan(action: action, result: planResult)
+                    pendingPlan = PendingMaintenancePlan(action: action, machine: target, result: planResult)
                 case .staleToken:
                     maintenanceReport = FleetModel.LastReport(
                         kind: .failure, message: String(localized: "maintenance.preview.staleToken"))
@@ -151,12 +172,20 @@ struct MaintenanceTabView: View {
     /// action in this app — so the outcome surfaces afterward through `maintenanceReport`
     /// and the history/state re-poll, not by keeping the sheet open.
     private func runExecute(_ plan: PendingMaintenancePlan) {
-        guard let planID = plan.result.planID else { return }
+        // Without this guard (fix round 1, I1) a double-click on "Execute" — a plausible
+        // reflex on a red, hesitated-over button — fires twice before `dismiss()` removes it:
+        // two `execute` calls with the *same* `plan_id`. The kit burns the token on the first
+        // attempt (ExploitAPIClient.swift), the second gets `.staleToken`, and the screen
+        // would announce "preview expired" for an action that just succeeded — on a reboot,
+        // the user would then trigger a second one.
+        guard !busy, let planID = plan.result.planID else { return }
         maintenanceBusy = true
         maintenanceReport = nil
-        let target = machine
+        maintenanceSuccess = nil
         Task {
-            let result = await attempt(plan.action, planID: planID, target: target)
+            let result = await withExternalLock {
+                await attempt(plan.action, planID: planID, target: plan.machine)
+            }
             maintenanceBusy = false
             switch result {
             case .failed(let message):
@@ -164,15 +193,30 @@ struct MaintenanceTabView: View {
             case .outcome(let outcome):
                 switch outcome {
                 case .completed(let execResult):
-                    // A completed-but-`ok:false` execution is a finding, not a failure to
-                    // run it — same vocabulary `LastActionErrorView` already carries for
-                    // doctor's failing checks.
-                    maintenanceReport = execResult.ok
-                        ? nil
-                        : FleetModel.LastReport(kind: .finding, message: execResult.message)
-                    // The just-run action is now in the audit trail; re-poll so History
-                    // (and capabilities/config, cheaply) reflect it without a manual retry.
-                    Task { await load() }
+                    // A completed-but-`ok:false` execution is a finding, not a failure to run
+                    // it — same vocabulary `LastActionErrorView` already carries for doctor's
+                    // failing checks. A completed, `ok:true` one is not a finding (that kind's
+                    // own headline is "reported problems" — wrong for a clean success) but it
+                    // still gets the server's own message rather than silence (fix round 1,
+                    // I2): the only visible feedback before this was the buttons re-enabling.
+                    if execResult.ok {
+                        maintenanceReport = nil
+                        maintenanceSuccess = execResult.message
+                    } else {
+                        maintenanceReport = FleetModel.LastReport(kind: .finding, message: execResult.message)
+                        maintenanceSuccess = nil
+                    }
+                    // `reboot`/`poweroff` make the machine unreachable on purpose — the
+                    // expected result of the action just run, not a fault. Re-polling right
+                    // away would fold the whole tab onto the "Attention needed — unreachable
+                    // … Tailscale ACL" card, right under a success message, contradicting it.
+                    // Every other action leaves the machine reachable, so it still re-polls
+                    // (fix round 1, I2): History (and capabilities/config) then reflect the
+                    // just-run action without a manual reload.
+                    switch plan.action {
+                    case .reboot: break
+                    case .aptUpdate, .dockerUpdate: Task { await load() }
+                    }
                 case .staleToken:
                     maintenanceReport = FleetModel.LastReport(
                         kind: .failure, message: String(localized: "maintenance.execute.staleToken"))
@@ -195,8 +239,12 @@ struct MaintenanceTabView: View {
     private func stateColor(for state: ExploitAvailability) -> Color {
         switch state {
         case .available: return Theme.semanticSuccess
-        case .notDeployed: return Theme.ink
-        case .unreachable, .unavailable, .cancelled: return Theme.semanticWarning
+        // `.cancelled` joins `.notDeployed` here, not the warning group below (fix round 1,
+        // m2): the contract is explicit that a vanished caller is "never a signal on the
+        // machine" (ExploitAPIContract.swift) — painting it as a warning would say the
+        // opposite.
+        case .notDeployed, .cancelled: return Theme.ink
+        case .unreachable, .unavailable: return Theme.semanticWarning
         case .forbidden: return Theme.semanticCritical
         }
     }
@@ -205,7 +253,8 @@ struct MaintenanceTabView: View {
         switch state {
         case .available: return "maintenance.state.available"
         case .notDeployed: return "maintenance.state.notDeployed"
-        case .unreachable, .unavailable, .cancelled: return "maintenance.state.attention"
+        case .cancelled: return "maintenance.state.cancelled"
+        case .unreachable, .unavailable: return "maintenance.state.attention"
         case .forbidden: return "maintenance.state.forbidden"
         }
     }
@@ -237,13 +286,22 @@ struct MaintenanceTabView: View {
                         .foregroundStyle(Theme.ink)
                         .lineSpacing(Theme.body.lineSpacing)
                         .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.sm)
+                    // I3 (fix round 1): the only reload affordance once this tab has
+                    // something to reload — ⌘R only refreshes the fleet's SSH poll
+                    // (`ControlCenterView`), never this tab's own four reads, and leaving the
+                    // tab and coming back is the only other way to get `.task` to run again.
+                    Button { Task { await load() } } label: { Text("Retry") }
+                        .buttonStyle(PillButtonStyle(kind: .secondary))
                 }
                 .accessibilityElement(children: .combine)
-            // `.notDeployed` gets the exact same card weight as every other non-available
-            // state (task-6 brief: "soigne-le autant que le chemin nominal") — a neutral
-            // hint instead of the Retry button the transient states get, since there is
-            // nothing here for a re-poll to fix.
-            case .notDeployed, .unreachable, .unavailable, .forbidden, .cancelled:
+            // `.notDeployed` and `.cancelled` are both neutral, not the warning group below
+            // (fix round 1, m2 for `.cancelled` — the contract says a vanished caller is
+            // "never a signal on the machine"): same card weight as `.available`
+            // (task-6 brief: "soigne-le autant que le chemin nominal"), no Retry — there is
+            // nothing here a re-poll would fix that the next `load()` will not retry on its
+            // own regardless.
+            case .notDeployed, .cancelled:
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     statePill(capabilities)
                     Text(verbatim: describe(capabilities))
@@ -257,10 +315,22 @@ struct MaintenanceTabView: View {
                             .foregroundStyle(Theme.ink)
                             .lineSpacing(Theme.body.lineSpacing)
                             .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Button { Task { await load() } } label: { Text("Retry") }
-                            .buttonStyle(PillButtonStyle(kind: .secondary))
                     }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Theme.Spacing.xl)
+                .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.lg))
+                .accessibilityElement(children: .combine)
+            case .unreachable, .unavailable, .forbidden:
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    statePill(capabilities)
+                    Text(verbatim: describe(capabilities))
+                        .styled(Theme.body)
+                        .foregroundStyle(Theme.ink)
+                        .lineSpacing(Theme.body.lineSpacing)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button { Task { await load() } } label: { Text("Retry") }
+                        .buttonStyle(PillButtonStyle(kind: .secondary))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(Theme.Spacing.xl)
@@ -310,7 +380,10 @@ struct MaintenanceTabView: View {
     }
 
     private var aptUpdateCard: some View {
-        actionCard(title: "Update packages") {
+        // Fix round 1, m4: a distinct card title — "Update packages" straight above a button
+        // saying the same thing read as one label split in two, unlike the reboot/docker
+        // cards, whose titles ("Power", "Docker service update") differ from their buttons.
+        actionCard(title: "maintenance.aptUpdate.cardTitle") {
             Button { runPreview(.aptUpdate) } label: {
                 Text(verbatim: "\(String(localized: "Update packages"))…")
             }
@@ -387,7 +460,10 @@ struct MaintenanceTabView: View {
                         .textSelection(.enabled)
                 }
             } else {
+                // Fix round 1, m3: reused rather than three new keys — all three sections
+                // load as part of the same poll cycle `maintenance.loading` already names.
                 ProgressView()
+                    .accessibilityLabel(Text("maintenance.loading"))
             }
         }
     }
@@ -433,7 +509,10 @@ struct MaintenanceTabView: View {
                         .textSelection(.enabled)
                 }
             } else {
+                // Fix round 1, m3: reused rather than three new keys — all three sections
+                // load as part of the same poll cycle `maintenance.loading` already names.
                 ProgressView()
+                    .accessibilityLabel(Text("maintenance.loading"))
             }
         }
     }
@@ -449,7 +528,10 @@ struct MaintenanceTabView: View {
             if let auditResult {
                 switch auditResult {
                 case .success(let entries) where entries.isEmpty:
-                    EmptyStateView(title: "maintenance.history.title", message: "maintenance.history.empty")
+                    // Fix round 1, m5: its own title, not the section's — same pattern as
+                    // `MachineDetailView.recentTasks`'s "Recent tasks" header above a "No
+                    // tasks yet" empty state, rather than "Recent tasks" stacked on itself.
+                    EmptyStateView(title: "maintenance.history.empty.title", message: "maintenance.history.empty")
                 case .success(let entries):
                     DataTable(columns: historyColumns, rows: auditRows(entries),
                               rowLabel: { auditAnnouncement($0.entry) })
@@ -460,7 +542,10 @@ struct MaintenanceTabView: View {
                         .textSelection(.enabled)
                 }
             } else {
+                // Fix round 1, m3: reused rather than three new keys — all three sections
+                // load as part of the same poll cycle `maintenance.loading` already names.
                 ProgressView()
+                    .accessibilityLabel(Text("maintenance.loading"))
             }
         }
     }
@@ -519,11 +604,48 @@ private enum MaintenanceAttempt: Sendable {
     case failed(String)
 }
 
+/// A completed, `ok:true` execution's own confirmation (fix round 1, I2) — same box
+/// language as `LastActionErrorView`/`StaleDataNotice` (`surfaceSoft`, `Rounded.md`), but its
+/// own headline and `semanticSuccess` ink: `LastActionErrorView`'s two kinds are both a form
+/// of "something needs attention", which a clean success is not.
+private struct MaintenanceSuccessView: View {
+    /// Server content — the message HomePortExploit sent back — shown as produced, never
+    /// translated, like every other machine-authored string in this app.
+    let message: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            Text("maintenance.execute.success")
+                .styled(Theme.bodyStrong)
+                .foregroundStyle(Theme.semanticSuccess)
+            Text(verbatim: message)
+                .styled(Theme.data)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(Theme.data.lineSpacing)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+        .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Rounded.md)
+                .stroke(Theme.semanticSuccess.opacity(0.25), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// One dry-run's result, awaiting its UX-DR6 confirmation. Never carries the `HomeportManager`
 /// that produced it (Global Constraint — see `MaintenanceTabView.pendingPlan`'s own comment).
 private struct PendingMaintenancePlan: Identifiable {
     let id = UUID()
     let action: ExploitAction
+    /// Frozen at dry-run time (fix round 1, m7): `MachineDetailView`'s `.id(machine.name)`
+    /// keys on the *name*, not the value, so a `fleet.yaml` reload between the dry-run and
+    /// the confirmation — purely theoretical, it takes an edit mid-flow — would otherwise
+    /// have `runExecute` read whatever `exploitPort`/`ssh` the view's `machine` holds *now*,
+    /// not the one the preview was actually run against.
+    let machine: Machine
     let result: ExploitResult
 }
 
@@ -563,15 +685,24 @@ private struct MaintenancePreviewSheet: View {
                 .lineSpacing(Theme.body.lineSpacing)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+            // `apt-update`'s detail is one line per pending package — 60 to 200 on a real
+            // Pi, the nominal case this sheet exists for, not the exception. Unbounded, that
+            // list pushes Cancel/Execute off the bottom of the sheet entirely (C1): the more
+            // useful the preview, the less reachable the button that acts on it. Capped and
+            // scrollable, the button bar always stays on screen.
             if !plan.result.detail.displayLines.isEmpty {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    ForEach(Array(plan.result.detail.displayLines.enumerated()), id: \.offset) { _, line in
-                        Text(verbatim: line)
-                            .styled(Theme.data)
-                            .foregroundStyle(Theme.ink)
-                            .textSelection(.enabled)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                        ForEach(Array(plan.result.detail.displayLines.enumerated()), id: \.offset) { _, line in
+                            Text(verbatim: line)
+                                .styled(Theme.data)
+                                .foregroundStyle(Theme.ink)
+                                .textSelection(.enabled)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxHeight: 240)
             }
             HStack(spacing: Theme.Spacing.sm) {
                 Spacer(minLength: 0)
