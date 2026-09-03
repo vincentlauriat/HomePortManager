@@ -4489,7 +4489,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prévisualisation expirée (jeton valable 5 minutes) — relancer la commande."
+            "value": "Prévisualisation expirée (jeton valable 5 minutes) — relancer l'action."
           }
         },
         "zh-Hans": {
@@ -4801,13 +4801,13 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jeton de plan expiré ou déjà consommé — relancer la commande."
+            "value": "Jeton de plan expiré ou déjà consommé — relancer l'action."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "计划令牌已过期或已被使用——请重新执行命令。"
+            "value": "计划令牌已过期或已被使用——请重新执行该操作。"
           }
         }
       }
