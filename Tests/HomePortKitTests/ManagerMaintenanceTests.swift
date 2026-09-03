@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 @testable import HomePortKit
 
 /// Couvre les quatre actions de maintenance déléguées à HomePortExploit vues depuis le
@@ -151,6 +152,43 @@ final class ManagerMaintenanceTests: XCTestCase {
         // Le repreneur a clos l'orphelin : le `finish` tardif du détenteur dégrade en
         // avertissement et ne réécrit pas le verdict.
         XCTAssertEqual(try observer.tasks().first?.status, .interrupted)
+    }
+
+    /// La garde de réentrance portée sur le chemin `async` : une action de maintenance
+    /// imbriquée dans une action journalisée ne rouvre ni entrée ni verrou. C'est aussi la
+    /// seule preuve empirique que `enter()` et le `defer { exit() }` s'apparient malgré le
+    /// point de suspension — une garde cassée se voit soit en seconde entrée, soit en
+    /// auto-contention.
+    func testNestedMaintenanceActionJournalsAndLocksOnlyOnce() async throws {
+        let (manager, log) = makeManager(historyPath: dbPath) { _ in self.ok(self.runJSON) }
+
+        try await manager.journaled("outer", on: machine, locking: true) {
+            _ = try await manager.maintenanceRun(.aptUpdate, planID: "abc", on: self.machine)
+        }
+
+        XCTAssertEqual(log.all.count, 1, "le corps imbriqué a bien tourné")
+        let history = try XCTUnwrap(manager.history)
+        XCTAssertEqual(try history.tasks().map(\.action), ["outer"],
+                       "l'action imbriquée ne journalise pas la sienne")
+        XCTAssertNil(try history.currentLock(machine: "raspcorse"),
+                     "une seule acquisition, une seule libération")
+    }
+
+    /// L'autre moitié de la doctrine : seule la contention refuse. Une base vivante dont la
+    /// mécanique de verrou casse en vol dégrade exactement comme le journal — un
+    /// avertissement, et l'action tourne sans verrou.
+    func testLockMachineryFailureDegradesWithoutBlockingTheAction() async throws {
+        let (manager, log) = makeManager(historyPath: dbPath) { _ in self.ok(self.runJSON) }
+        var saboteur: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(dbPath, &saboteur), SQLITE_OK)
+        defer { sqlite3_close_v2(saboteur) }
+        XCTAssertEqual(sqlite3_exec(saboteur, "DROP TABLE locks;", nil, nil, nil), SQLITE_OK)
+
+        _ = try await manager.maintenanceRun(.aptUpdate, planID: "abc", on: machine)
+
+        XCTAssertEqual(log.all.count, 1, "l'action doit tourner malgré la mécanique cassée")
+        // Le journal, lui, est intact et adopte l'action.
+        XCTAssertEqual(try XCTUnwrap(manager.history).tasks().map(\.status), [.success])
     }
 
     // MARK: - Journal
