@@ -16,10 +16,14 @@ struct MachineCmd: ParsableCommand {
         @Argument(help: "Machine name (e.g. raspcorse).") var name: String
         @Option(help: "SSH destination (host alias or user@host).") var ssh: String
         @Option(help: "Homeport HTTP port on the machine.") var port: Int = 80
+        // m2 (revue finale) : sans cette option, `exploitPort` n'était réglable qu'en éditant
+        // fleet.yaml à la main — la fonctionnalité de maintenance qu'il déclenche restait
+        // inatteignable au premier essai.
+        @Option(help: "HomePortExploit HTTP port on the machine (enables hpm maintenance / the Maintenance tab).") var exploitPort: Int?
         @Option(help: "Free-form note.") var notes: String?
 
         func run() throws {
-            try FleetStore().add(Machine(name: name, ssh: ssh, port: port, notes: notes))
+            try FleetStore().add(Machine(name: name, ssh: ssh, port: port, notes: notes, exploitPort: exploitPort))
             print("✓ \(name) added")
         }
     }
@@ -33,8 +37,9 @@ struct MachineCmd: ParsableCommand {
                 return
             }
             for machine in machines {
+                let exploitPort = machine.exploitPort.map { "  exploitPort=\($0)" } ?? ""
                 let notes = machine.notes.map { "  — \($0)" } ?? ""
-                print("\(machine.name)  ssh=\(machine.ssh)  port=\(machine.port)\(notes)")
+                print("\(machine.name)  ssh=\(machine.ssh)  port=\(machine.port)\(exploitPort)\(notes)")
             }
         }
     }
