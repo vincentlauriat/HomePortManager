@@ -48,7 +48,15 @@ final class FleetModel: ObservableObject {
 
     private let blockStore = MachineBlockStore()
     private var timer: Timer?
-    private let makeManager: (@escaping Reporter) -> HomeportManager
+    /// Not `private`: `MaintenanceTabView` needs the exact same `let factory = makeManager;
+    /// Task.detached { let manager = factory { _ in } … }` shape every mutation here already
+    /// uses (Global Constraint — never a cached manager instance, and the manager must be
+    /// built *inside* the detached task, or the non-`Sendable` `HomeportManager` would cross
+    /// the boundary instead of the `Sendable` factory closure). A second, separately
+    /// constructed `HomeportManager` would also open its own `HistoryStore`, breaking "one
+    /// shared store for the whole app" (`history` below) that `journaled`'s lock and journal
+    /// depend on.
+    let makeManager: (@escaping Reporter) -> HomeportManager
     /// One shared store for the whole app: the model reads it, the managers built by the
     /// factory journal through it. nil when the state directory is unusable — the journal
     /// degrades, actions still run.

@@ -57,7 +57,7 @@ enum ControlCenterWindow {
 /// Keyboard shortcuts are resolved by the window itself. An `LSUIElement` app has no main
 /// menu, and SwiftUI's `.keyboardShortcut` is dispatched through the menu system — inside a
 /// bare `NSHostingView` it never fires. Overriding `performKeyEquivalent` keeps ⌘R, ⌘F and
-/// ⌘1…⌘8 scoped to this window and independent of the menu bar.
+/// ⌘1…⌘9 scoped to this window and independent of the menu bar.
 final class ControlCenterNSWindow: NSWindow {
     let commands = ControlCenterCommands()
 
@@ -96,11 +96,11 @@ final class ControlCenterCommands: ObservableObject {
             }
         }
 
-        /// `⌘R`, `⌘F`, `⌘1`…`⌘8` — command alone, so ⇧⌘R or ⌥⌘F stay available.
+        /// `⌘R`, `⌘F`, `⌘1`…`⌘9` — command alone, so ⇧⌘R or ⌥⌘F stay available.
         ///
         /// Letters are read from the characters, digits from the *physical* key. The top row
-        /// of an AZERTY keyboard produces `&`, `é`, `"`… and never `1`-`8`, so matching on
-        /// characters made every ⌘1…⌘8 dead on the only keyboard this app is used with.
+        /// of an AZERTY keyboard produces `&`, `é`, `"`… and never `1`-`9`, so matching on
+        /// characters made every ⌘1…⌘9 dead on the only keyboard this app is used with.
         init?(event: NSEvent) {
             guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
             else { return nil }
@@ -115,12 +115,12 @@ final class ControlCenterCommands: ObservableObject {
             }
         }
 
-        /// Virtual key codes of the digits 1…8, on the number row and on the numeric keypad.
+        /// Virtual key codes of the digits 1…9, on the number row and on the numeric keypad.
         /// They are positions on the keyboard, identical on every layout — which is the
         /// whole point. (`kVK_ANSI_5` is 23 and `kVK_ANSI_6` is 22: not a typo.)
         private static let digitKeys: [UInt16: Int] = [
-            18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8,
-            83: 1, 84: 2, 85: 3, 86: 4, 87: 5, 88: 6, 89: 7, 91: 8,
+            18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
+            83: 1, 84: 2, 85: 3, 86: 4, 87: 5, 88: 6, 89: 7, 91: 8, 92: 9,
         ]
     }
 

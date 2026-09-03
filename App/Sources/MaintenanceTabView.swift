@@ -1,0 +1,603 @@
+import SwiftUI
+import HomePortKit
+
+/// The Maintenance tab (task 6): the HomePortExploit surface for one machine — its state,
+/// the actions it serves, the destructive confirmation flow (UX-DR6), its Homeport config in
+/// read-only, and its own action history.
+///
+/// Two machines out of three on the real fleet have no exploit service at all, so
+/// `.notDeployed` is this tab's *most common* screen, not its error case — it gets the same
+/// care as the available path (`stateCard`), not a red badge.
+///
+/// Every read here is polled fresh on each visit — `maintenanceCapabilities`/`maintenanceAudit`
+/// document themselves as "never journaled", and the two direct `exploit` reads share that
+/// doctrine — so, unlike Events/Metrics/Logs, nothing needs a store that survives the tab
+/// switch `.id(machine.name)` would otherwise throw away: plain `@State`, reloaded by `.task`.
+struct MaintenanceTabView: View {
+    @ObservedObject var model: FleetModel
+    let machine: Machine
+
+    @State private var capabilities: ExploitAvailability?
+    @State private var dockerServices: Result<[ExploitDockerService], ExploitAvailability>?
+    @State private var configResult: Result<String?, ExploitAvailability>?
+    @State private var auditResult: Result<[ExploitAuditEntry], ExploitAvailability>?
+    @State private var selectedService = ""
+
+    /// The dry-run just shown, awaiting its UX-DR6 confirmation. Carries the plan's action
+    /// and result only — never the `HomeportManager` that produced it: the Global Constraint
+    /// is "never a cached instance", and a manager kept in `@State` across the tap that opens
+    /// this sheet and the tap that confirms it would be exactly that. `execute` builds its
+    /// own, fresh, inside its own `Task.detached` — same as this dry-run did for its.
+    @State private var pendingPlan: PendingMaintenancePlan?
+    @State private var maintenanceBusy = false
+    /// The last dry-run/execute failure, in the same shape — and the same visual surface,
+    /// `LastActionErrorView` — every other action's failure gets. A pure display struct, not
+    /// `model.lastError`: that dictionary belongs to `FleetModel.run`, and a maintenance
+    /// action never runs through it (it has its own lane, its own busy flag, below).
+    @State private var maintenanceReport: FleetModel.LastReport?
+
+    /// Disables every maintenance button while either lane mutates this machine: the kit's
+    /// per-machine lock (AD-12) is shared with `FleetModel.run`'s own actions, so a Backup in
+    /// flight would otherwise make a dry-run here fail with a raw lock-contention error
+    /// instead of simply being unavailable to start.
+    private var busy: Bool { model.inFlight[machine.name] != nil || maintenanceBusy }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+            if let maintenanceReport {
+                LastActionErrorView(report: maintenanceReport)
+            }
+            stateCard
+            if case .available(let caps) = capabilities {
+                actionsSection(caps: caps)
+                homeportConfigSection
+                historySection
+            }
+        }
+        .task { await load() }
+        .sheet(item: $pendingPlan) { plan in
+            MaintenancePreviewSheet(machineName: machine.name, plan: plan) {
+                runExecute(plan)
+            }
+        }
+    }
+
+    // MARK: - Loading
+
+    /// One manager for the whole poll cycle, built fresh inside the detached task and
+    /// discarded when it returns — never stashed in `@State` (Global Constraint). The four
+    /// reads run concurrently: none of them locks (AD-16 draws the mutation line at the two
+    /// `journaled` calls below), so there is nothing to serialize.
+    private func load() async {
+        let factory = model.makeManager
+        let target = machine
+        let snapshot = await Task.detached {
+            let manager = factory { _ in }
+            async let caps = manager.maintenanceCapabilities(of: target)
+            async let audit = manager.maintenanceAudit(of: target, limit: 50)
+            async let docker = manager.exploit.dockerServices(of: target)
+            async let config = manager.exploit.homeportConfig(of: target)
+            return await (caps, audit, docker, config)
+        }.value
+        guard !Task.isCancelled else { return }
+        capabilities = snapshot.0
+        auditResult = snapshot.1
+        dockerServices = snapshot.2
+        configResult = snapshot.3
+        // A service picked before a re-poll (after an execute, say) that no longer serves
+        // that name must not silently keep it selected — the button would just 422.
+        if case .success(let services) = snapshot.2, !services.contains(where: { $0.name == selectedService }) {
+            selectedService = ""
+        }
+    }
+
+    /// A `Task.detached` boundary can only cross `Sendable` values — a thrown `Swift.Error`
+    /// is not guaranteed to be one, so the closure resolves it to a message *before*
+    /// returning, exactly like `FleetModel.fetchLogs` does for its own thrown error. Serves
+    /// both halves of the flow: `planID == nil` is the dry-run, `planID` present is the
+    /// confirmed execute — each call gets its own fresh manager either way.
+    private func attempt(_ action: ExploitAction, planID: String?, target: Machine) async -> MaintenanceAttempt {
+        let factory = model.makeManager
+        return await Task.detached {
+            let manager = factory { _ in }
+            do {
+                let outcome: ExploitOutcome
+                if let planID {
+                    outcome = try await manager.maintenanceRun(action, planID: planID, on: target)
+                } else {
+                    outcome = try await manager.maintenancePlan(action, on: target)
+                }
+                return .outcome(outcome)
+            } catch {
+                // The one thrown error this seam admits (LockContentionError) renders the
+                // same generic way `FleetModel.run`'s own catch already does for its actions.
+                return .failed("\(error)")
+            }
+        }.value
+    }
+
+    // MARK: - Actions
+
+    private func runPreview(_ action: ExploitAction) {
+        guard !busy else { return }
+        maintenanceBusy = true
+        maintenanceReport = nil
+        let target = machine
+        Task {
+            let result = await attempt(action, planID: nil, target: target)
+            maintenanceBusy = false
+            switch result {
+            case .failed(let message):
+                maintenanceReport = FleetModel.LastReport(kind: .failure, message: message)
+            case .outcome(let outcome):
+                switch outcome {
+                case .completed(let planResult):
+                    pendingPlan = PendingMaintenancePlan(action: action, result: planResult)
+                case .staleToken:
+                    maintenanceReport = FleetModel.LastReport(
+                        kind: .failure, message: String(localized: "maintenance.preview.staleToken"))
+                case .unknownAction:
+                    maintenanceReport = FleetModel.LastReport(
+                        kind: .failure, message: String(localized: "maintenance.unknownAction"))
+                case .unavailable(let state):
+                    maintenanceReport = FleetModel.LastReport(kind: .failure, message: describe(state))
+                }
+            }
+        }
+    }
+
+    /// UX-DR6's confirmation always dismisses on tap before the mutation runs — the same
+    /// optimistic pattern `ConfirmationSheet` already uses for every other destructive
+    /// action in this app — so the outcome surfaces afterward through `maintenanceReport`
+    /// and the history/state re-poll, not by keeping the sheet open.
+    private func runExecute(_ plan: PendingMaintenancePlan) {
+        guard let planID = plan.result.planID else { return }
+        maintenanceBusy = true
+        maintenanceReport = nil
+        let target = machine
+        Task {
+            let result = await attempt(plan.action, planID: planID, target: target)
+            maintenanceBusy = false
+            switch result {
+            case .failed(let message):
+                maintenanceReport = FleetModel.LastReport(kind: .failure, message: message)
+            case .outcome(let outcome):
+                switch outcome {
+                case .completed(let execResult):
+                    // A completed-but-`ok:false` execution is a finding, not a failure to
+                    // run it — same vocabulary `LastActionErrorView` already carries for
+                    // doctor's failing checks.
+                    maintenanceReport = execResult.ok
+                        ? nil
+                        : FleetModel.LastReport(kind: .finding, message: execResult.message)
+                    // The just-run action is now in the audit trail; re-poll so History
+                    // (and capabilities/config, cheaply) reflect it without a manual retry.
+                    Task { await load() }
+                case .staleToken:
+                    maintenanceReport = FleetModel.LastReport(
+                        kind: .failure, message: String(localized: "maintenance.execute.staleToken"))
+                case .unknownAction:
+                    maintenanceReport = FleetModel.LastReport(
+                        kind: .failure, message: String(localized: "maintenance.unknownAction"))
+                case .unavailable(let state):
+                    maintenanceReport = FleetModel.LastReport(kind: .failure, message: describe(state))
+                }
+            }
+        }
+    }
+
+    // MARK: - State
+
+    /// The tab's own severity vocabulary — distinct from `FleetRow.Severity` because
+    /// `.notDeployed` needs a fourth, neutral value that severity's three cases don't carry:
+    /// it is not a problem to fix, and colouring it like one would be a false alarm on two
+    /// thirds of the real fleet, on every single visit to this tab.
+    private func stateColor(for state: ExploitAvailability) -> Color {
+        switch state {
+        case .available: return Theme.semanticSuccess
+        case .notDeployed: return Theme.ink
+        case .unreachable, .unavailable, .cancelled: return Theme.semanticWarning
+        case .forbidden: return Theme.semanticCritical
+        }
+    }
+
+    private func stateLabel(for state: ExploitAvailability) -> LocalizedStringKey {
+        switch state {
+        case .available: return "maintenance.state.available"
+        case .notDeployed: return "maintenance.state.notDeployed"
+        case .unreachable, .unavailable, .cancelled: return "maintenance.state.attention"
+        case .forbidden: return "maintenance.state.forbidden"
+        }
+    }
+
+    /// Pastille + libellé texte (UX-DR7): the pill never carries the state alone —
+    /// `describe(state)` sits right beside it, in the one formulation `hpm maintenance`
+    /// already uses, verbatim (never a second wording of the same state).
+    private func statePill(_ state: ExploitAvailability) -> some View {
+        Text(stateLabel(for: state))
+            .styled(Theme.eyebrow)
+            .foregroundStyle(stateColor(for: state))
+            .padding(.vertical, 2)
+            .padding(.horizontal, 10)
+            .background(Theme.canvas, in: RoundedRectangle(cornerRadius: Theme.Rounded.pill))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Rounded.pill)
+                    .stroke(stateColor(for: state).opacity(0.25), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private var stateCard: some View {
+        if let capabilities {
+            switch capabilities {
+            case .available:
+                HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                    statePill(capabilities)
+                    Text(verbatim: describe(capabilities))
+                        .styled(Theme.body)
+                        .foregroundStyle(Theme.ink)
+                        .lineSpacing(Theme.body.lineSpacing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            // `.notDeployed` gets the exact same card weight as every other non-available
+            // state (task-6 brief: "soigne-le autant que le chemin nominal") — a neutral
+            // hint instead of the Retry button the transient states get, since there is
+            // nothing here for a re-poll to fix.
+            case .notDeployed, .unreachable, .unavailable, .forbidden, .cancelled:
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    statePill(capabilities)
+                    Text(verbatim: describe(capabilities))
+                        .styled(Theme.body)
+                        .foregroundStyle(Theme.ink)
+                        .lineSpacing(Theme.body.lineSpacing)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if case .notDeployed = capabilities {
+                        Text("maintenance.notDeployed.hint")
+                            .styled(Theme.body)
+                            .foregroundStyle(Theme.ink)
+                            .lineSpacing(Theme.body.lineSpacing)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Button { Task { await load() } } label: { Text("Retry") }
+                            .buttonStyle(PillButtonStyle(kind: .secondary))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Theme.Spacing.xl)
+                .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.lg))
+                .accessibilityElement(children: .combine)
+            }
+        } else {
+            ProgressView()
+                .accessibilityLabel(Text("maintenance.loading"))
+        }
+    }
+
+    // MARK: - Action cards
+
+    private func actionsSection(caps: ExploitCapabilities) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text("Actions")
+                .styled(Theme.sectionTitle)
+                .foregroundStyle(Theme.ink)
+            if caps.serves(ExploitAction.aptUpdate.name) {
+                aptUpdateCard
+            }
+            if caps.serves(ExploitAction.reboot(mode: .reboot).name) {
+                rebootCard
+            }
+            if caps.serves(ExploitAction.dockerUpdate(service: "").name) {
+                dockerUpdateCard
+            }
+        }
+    }
+
+    private func actionCard<Content: View>(title: LocalizedStringKey,
+                                           @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(title)
+                .styled(Theme.eyebrow)
+                .foregroundStyle(Theme.ink)
+                .textCase(.uppercase)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.md)
+        .background(Theme.canvas, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Rounded.md)
+                .stroke(Theme.hairline, lineWidth: 1))
+    }
+
+    private var aptUpdateCard: some View {
+        actionCard(title: "Update packages") {
+            Button { runPreview(.aptUpdate) } label: {
+                Text(verbatim: "\(String(localized: "Update packages"))…")
+            }
+            .buttonStyle(PillButtonStyle(kind: .destructive))
+            .disabled(busy)
+            .accessibilityLabel(Text("Update packages"))
+        }
+    }
+
+    private var rebootCard: some View {
+        actionCard(title: "maintenance.reboot.title") {
+            HStack(spacing: Theme.Spacing.sm) {
+                ForEach(ExploitAction.RebootMode.allCases, id: \.rawValue) { mode in
+                    Button { runPreview(.reboot(mode: mode)) } label: {
+                        Text(verbatim: "\(rebootModeText(mode))…")
+                    }
+                    .buttonStyle(PillButtonStyle(kind: .destructive))
+                    .disabled(busy)
+                    .accessibilityLabel(Text(rebootModeKey(mode)))
+                }
+            }
+        }
+    }
+
+    /// `Text` and `String(localized:)` take two different literal-key types
+    /// (`LocalizedStringKey` vs `String.LocalizationValue`) that do not convert into one
+    /// another — hence the two accessors below rather than one shared `LocalizedStringKey`.
+    private func rebootModeKey(_ mode: ExploitAction.RebootMode) -> LocalizedStringKey {
+        switch mode {
+        case .reboot: return "maintenance.reboot.reboot"
+        case .poweroff: return "maintenance.reboot.poweroff"
+        }
+    }
+
+    private func rebootModeText(_ mode: ExploitAction.RebootMode) -> String {
+        switch mode {
+        case .reboot: return String(localized: "maintenance.reboot.reboot")
+        case .poweroff: return String(localized: "maintenance.reboot.poweroff")
+        }
+    }
+
+    @ViewBuilder
+    private var dockerUpdateCard: some View {
+        actionCard(title: "maintenance.dockerUpdate.title") {
+            if let dockerServices {
+                switch dockerServices {
+                case .success(let services) where services.isEmpty:
+                    Text("maintenance.docker.empty")
+                        .styled(Theme.body)
+                        .foregroundStyle(Theme.ink)
+                case .success(let services):
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Picker("maintenance.docker.service", selection: $selectedService) {
+                            Text("maintenance.docker.pick").tag("")
+                            ForEach(services) { service in
+                                Text(verbatim: service.name).tag(service.name)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 220)
+                        Button { runPreview(.dockerUpdate(service: selectedService)) } label: {
+                            Text(verbatim: "\(String(localized: "maintenance.dockerUpdate.button"))…")
+                        }
+                        .buttonStyle(PillButtonStyle(kind: .destructive))
+                        .disabled(busy || selectedService.isEmpty)
+                        .accessibilityLabel(Text("maintenance.dockerUpdate.button"))
+                    }
+                case .failure(let state):
+                    // Never a hard-coded fallback list (the known, parked defect of the
+                    // Pi's own web UI) — the failure is said plainly instead.
+                    Text(verbatim: describe(state))
+                        .styled(Theme.data)
+                        .foregroundStyle(Theme.ink)
+                        .textSelection(.enabled)
+                }
+            } else {
+                ProgressView()
+            }
+        }
+    }
+
+    // MARK: - Homeport config (read-only)
+
+    @ViewBuilder
+    private var homeportConfigSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text("maintenance.config.title")
+                .styled(Theme.sectionTitle)
+                .foregroundStyle(Theme.ink)
+            if let configResult {
+                switch configResult {
+                case .success(let content):
+                    if let content {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                            Text(verbatim: content)
+                                .styled(Theme.data)
+                                .foregroundStyle(Theme.ink)
+                                .lineSpacing(Theme.data.lineSpacing)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(Theme.Spacing.sm)
+                                .background(Theme.surfaceSoft, in: RoundedRectangle(cornerRadius: Theme.Rounded.md))
+                            Text("maintenance.config.readOnlyHint")
+                                .styled(Theme.caption)
+                                .foregroundStyle(Theme.ink)
+                        }
+                    } else {
+                        // 404 here means "no file on the Pi", never "server too old" —
+                        // `homeportConfig(of:)`'s own doctrine, not shared with the other
+                        // three reads (see its comment in ExploitAPIClient.swift).
+                        Text("maintenance.config.notFound")
+                            .styled(Theme.body)
+                            .foregroundStyle(Theme.ink)
+                    }
+                case .failure(let state):
+                    Text(verbatim: describe(state))
+                        .styled(Theme.data)
+                        .foregroundStyle(Theme.ink)
+                        .textSelection(.enabled)
+                }
+            } else {
+                ProgressView()
+            }
+        }
+    }
+
+    // MARK: - History
+
+    @ViewBuilder
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text("maintenance.history.title")
+                .styled(Theme.sectionTitle)
+                .foregroundStyle(Theme.ink)
+            if let auditResult {
+                switch auditResult {
+                case .success(let entries) where entries.isEmpty:
+                    EmptyStateView(title: "maintenance.history.title", message: "maintenance.history.empty")
+                case .success(let entries):
+                    DataTable(columns: historyColumns, rows: auditRows(entries),
+                              rowLabel: { auditAnnouncement($0.entry) })
+                case .failure(let state):
+                    Text(verbatim: describe(state))
+                        .styled(Theme.data)
+                        .foregroundStyle(Theme.ink)
+                        .textSelection(.enabled)
+                }
+            } else {
+                ProgressView()
+            }
+        }
+    }
+
+    /// `ExploitAuditEntry` is not `Identifiable` (Manager+Maintenance.swift task-5 brief:
+    /// the server keeps no id, so a client that needs one builds its own) — position in this
+    /// already-ordered slice is that identity.
+    private func auditRows(_ entries: [ExploitAuditEntry]) -> [AuditRow] {
+        entries.enumerated().map { AuditRow(id: $0.offset, entry: $0.element) }
+    }
+
+    private var historyColumns: [DataColumn<AuditRow>] {
+        [
+            DataColumn("Date", width: 150) { row in TaskDateText(date: row.entry.timestamp) },
+            DataColumn("Action") { row in
+                Text(verbatim: row.entry.action)
+                    .styled(Theme.data)
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+            },
+            DataColumn("Dry run", width: 70) { row in
+                Text(row.entry.dryRun ? "maintenance.history.yes" : "maintenance.history.no")
+                    .styled(Theme.data)
+                    .foregroundStyle(Theme.ink)
+            },
+            DataColumn("Status", width: 70) { row in
+                Text(row.entry.ok ? "maintenance.history.ok" : "maintenance.history.failed")
+                    .styled(Theme.data)
+                    .foregroundStyle(row.entry.ok ? Theme.semanticSuccess : Theme.semanticCritical)
+            },
+            DataColumn("Message") { row in
+                Text(verbatim: row.entry.message)
+                    .styled(Theme.data)
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+            },
+        ]
+    }
+
+    /// One VoiceOver announcement per history row — same shape as `taskAnnouncement`
+    /// (FleetOverviewView.swift): action, then the localized status, then the timestamp
+    /// spoken as a formatted date rather than a raw ISO 8601 string.
+    private func auditAnnouncement(_ entry: ExploitAuditEntry) -> Text {
+        Text(verbatim: entry.action)
+            + Text(verbatim: ". ")
+            + Text(entry.ok ? "maintenance.history.ok" : "maintenance.history.failed")
+            + Text(verbatim: ". ")
+            + Text(entry.timestamp, format: .dateTime.year().month().day().hour().minute())
+    }
+}
+
+/// Resolves a `Task.detached` boundary crossing that a thrown `Swift.Error` cannot make
+/// safely on its own — see `MaintenanceTabView.attempt(_:planID:target:)`.
+private enum MaintenanceAttempt: Sendable {
+    case outcome(ExploitOutcome)
+    case failed(String)
+}
+
+/// One dry-run's result, awaiting its UX-DR6 confirmation. Never carries the `HomeportManager`
+/// that produced it (Global Constraint — see `MaintenanceTabView.pendingPlan`'s own comment).
+private struct PendingMaintenancePlan: Identifiable {
+    let id = UUID()
+    let action: ExploitAction
+    let result: ExploitResult
+}
+
+/// `ExploitAuditEntry` plus the identity `DataTable` needs and the contract does not carry.
+private struct AuditRow: Identifiable {
+    let id: Int
+    let entry: ExploitAuditEntry
+}
+
+/// The UX-DR6 confirmation for a maintenance action: the dry-run's own message and detail
+/// lines (`result.detail.displayLines` — for `apt-update`, the real package list), never a
+/// second, hand-written description of what is about to happen. Bespoke rather than
+/// `ConfirmationSheet` (DesignComponents.swift): that component's `consequence` is a single
+/// `LocalizedStringKey`, which cannot carry a dynamic, unlocalized list of server-authored
+/// lines — but it reuses that component's exact visual language (padding, buttons, the one
+/// critical ground in the app).
+private struct MaintenancePreviewSheet: View {
+    let machineName: String
+    let plan: PendingMaintenancePlan
+    let confirm: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    /// CLI parity (`MaintenanceCmd.Run.run()`): a dry-run that answered but is not `ok`, or
+    /// carries no `plan_id`, never reaches execute — the sheet still shows why, just with
+    /// nothing left to confirm.
+    private var canExecute: Bool { plan.result.ok && plan.result.planID != nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text(title)
+                .styled(Theme.sectionTitle)
+                .foregroundStyle(Theme.ink)
+            Text(verbatim: plan.result.message)
+                .styled(Theme.body)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(Theme.body.lineSpacing)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            if !plan.result.detail.displayLines.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    ForEach(Array(plan.result.detail.displayLines.enumerated()), id: \.offset) { _, line in
+                        Text(verbatim: line)
+                            .styled(Theme.data)
+                            .foregroundStyle(Theme.ink)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+            HStack(spacing: Theme.Spacing.sm) {
+                Spacer(minLength: 0)
+                Button { dismiss() } label: { Text(canExecute ? "Cancel" : "Close") }
+                    .buttonStyle(PillButtonStyle(kind: .secondary))
+                    .keyboardShortcut(.cancelAction)
+                if canExecute {
+                    // Dismiss-then-fire, same as `ConfirmationSheet`: the mutation's own
+                    // outcome surfaces afterward (`maintenanceReport`, the history re-poll),
+                    // not by keeping this sheet open.
+                    Button { dismiss(); confirm() } label: { Text("maintenance.confirm.execute") }
+                        .buttonStyle(PillButtonStyle(kind: .critical))
+                }
+            }
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(width: 420, alignment: .leading)
+        .background(Theme.canvas)
+    }
+
+    private var title: LocalizedStringKey {
+        switch plan.action {
+        case .aptUpdate: return "Update packages on \(machineName)"
+        case .reboot(.reboot): return "Reboot \(machineName)"
+        case .reboot(.poweroff): return "Power off \(machineName)"
+        case .dockerUpdate: return "Update Docker service on \(machineName)"
+        }
+    }
+}
