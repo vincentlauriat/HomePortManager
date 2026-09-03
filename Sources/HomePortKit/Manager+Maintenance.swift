@@ -75,7 +75,11 @@ extension HomeportManager {
         case .unknownAction:
             return "action absente du catalogue de cette machine"
         case .unavailable(let state):
-            return "indisponible — \(state)"
+            // I1 (revue finale) : `state` n'a aucune conformance `CustomStringConvertible` —
+            // l'interpoler brut imprimait la réflexion Swift (`unavailable(unreachable("…"))`)
+            // au lieu de la formulation que `describe(_:)` existe pour porter, et l'écrivait
+            // définitivement dans la colonne `output` de `hpm.db`.
+            return "indisponible — \(describe(state))"
         // A2 (tâche 6b) : ni "ok" ni "échec" — `isSuccess` ci-dessus renvoie `false` pour ce
         // cas (même doctrine : « A tick in `hpm tasks` against an action that never ran is
         // worse than no entry at all »), mais le texte du journal ne doit pas mentir en

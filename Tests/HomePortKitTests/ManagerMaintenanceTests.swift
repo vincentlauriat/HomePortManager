@@ -277,7 +277,13 @@ final class ManagerMaintenanceTests: XCTestCase {
         XCTAssertEqual(entry.status, .failure,
                        "une coche sur une action qui n'a pas eu lieu serait pire qu'aucune entrée")
         XCTAssertNotNil(entry.finishedAt)
-        XCTAssertTrue(entry.output.contains("notDeployed"), entry.output)
+        // I1 (revue finale) : avant le correctif, cette assertion pinnait la réflexion Swift
+        // brute (`unavailable(notDeployed)`) que `summary(of:)` interpolait — exactement le
+        // défaut que le correctif supprime. `entry.output` doit désormais porter la phrase de
+        // `describe(_:)`, jamais le nom du cas.
+        XCTAssertTrue(entry.output.contains("pas déployé"), entry.output)
+        XCTAssertFalse(entry.output.contains("notDeployed"), entry.output)
+        XCTAssertFalse(entry.output.contains("ExploitAvailability"), entry.output)
     }
 
     /// Les deux autres verdicts négatifs que le serveur peut rendre sans que rien ne lance :
@@ -381,6 +387,33 @@ final class ManagerMaintenanceTests: XCTestCase {
         // Le piège qui a coûté une demi-journée au déploiement initial : un timeout est
         // indiscernable d'une panne machine si le message ne nomme pas l'ACL.
         XCTAssertTrue(describe(.unreachable("timed out")).contains("ACL Tailscale"))
+    }
+
+    /// C1 (revue finale) : le pendant honnête de `.unreachable` — une réponse EST arrivée, donc
+    /// le message ne doit jamais reprendre les trois causes que sa seule réception réfute
+    /// (machine éteinte, service arrêté, ACL absente).
+    func testUnexpectedResponseNeverInventsMachineOffCauses() {
+        let message = describe(.unexpectedResponse("HTTP 500"))
+        XCTAssertTrue(message.contains("500"), message)
+        XCTAssertFalse(message.contains("éteinte"), message)
+        XCTAssertFalse(message.contains("arrêté"), message)
+        XCTAssertFalse(message.contains("ACL"), message)
+    }
+
+    /// I1 (revue finale) : `summary(of:)` n'avait aucun test avant ce correctif (m4). Doit
+    /// passer par `describe(_:)`, jamais interpoler `ExploitAvailability` brut — la réflexion
+    /// Swift (`unavailable(unreachable("…"))`) finirait sinon imprimée par le CLI et écrite en
+    /// dur dans `hpm.db`.
+    func testSummaryOfUnavailableUsesDescribeNotRawReflection() {
+        let summary = HomeportManager.summary(of: .unavailable(.notDeployed))
+        XCTAssertTrue(summary.contains("pas déployé"), summary)
+        XCTAssertFalse(summary.contains("ExploitAvailability"), summary)
+        XCTAssertFalse(summary.contains("notDeployed"), summary)
+    }
+
+    func testSummaryOfCompletedFailureCarriesTheServerMessage() {
+        let result = ExploitResult(ok: false, message: "dpkg est verrouillé", detail: [:], planID: nil)
+        XCTAssertEqual(HomeportManager.summary(of: .completed(result)), "échec — dpkg est verrouillé")
     }
 
     /// `.cancelled` n'est pas dans le tableau du brief — un simple switch exhaustif oblige
