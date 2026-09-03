@@ -43,6 +43,24 @@ final class ManagerMaintenanceTests: XCTestCase {
         }
     }
 
+    /// Une barrière à usage unique. L'attente se fait sur une file globale et jamais sur un
+    /// thread coopératif : le bloquer figerait la tâche qu'on cherche justement à faire
+    /// avancer.
+    private final class Signal: @unchecked Sendable {
+        private let semaphore = DispatchSemaphore(value: 0)
+
+        func fire() { semaphore.signal() }
+
+        func wait() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global().async {
+                    self.semaphore.wait()
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
     private func ok(_ json: String) -> HTTPReply { HTTPReply(status: 200, body: Data(json.utf8)) }
 
     private let planJSON = #"{"ok": true, "message": "12 paquets à mettre à jour", "plan_id": "abc"}"#
@@ -50,11 +68,11 @@ final class ManagerMaintenanceTests: XCTestCase {
 
     /// Un manager câblé sur une couture qui journalise ses requêtes et rend `reply`.
     private func makeManager(historyPath: String?, log: FetchLog = FetchLog(),
-                             reply: @escaping (URLRequest) throws -> HTTPReply)
+                             reply: @escaping (URLRequest) async throws -> HTTPReply)
         -> (HomeportManager, FetchLog) {
         let exploit = ExploitAPIClient(fetch: { request in
             log.record(request)
-            return try reply(request)
+            return try await reply(request)
         })
         return (makeTestManager(mock: MockProcessRunner(), historyPath: historyPath, exploit: exploit), log)
     }
@@ -220,13 +238,9 @@ final class ManagerMaintenanceTests: XCTestCase {
     }
 
     /// Aucun échec du contrat n'est une erreur : une machine sans `exploitPort` rend
-    /// `.unavailable(.notDeployed)` comme une valeur — l'entrée existe, elle est close, et
-    /// elle porte l'état dans son compte rendu.
-    ///
-    /// Réserve connue et volontairement épinglée ici : parce que rien ne lance, le seam
-    /// clôt l'entrée en `.success`, y compris pour un `outcome` négatif. Le verdict vit
-    /// dans l'`output`, pas dans le `status`.
-    func testUnavailableOutcomeIsAValueAndStillJournals() async throws {
+    /// `.unavailable(.notDeployed)` comme une valeur — l'appelant reçoit un `outcome`, rien
+    /// ne lance. Mais le journal, lui, doit dire la vérité : l'entrée se clôt en `.failure`.
+    func testUnavailableOutcomeIsAValueAndJournalsAFailure() async throws {
         let (manager, log) = makeManager(historyPath: dbPath) { _ in
             XCTFail("aucune requête sans exploitPort")
             return HTTPReply(status: 200, body: Data())
@@ -239,8 +253,70 @@ final class ManagerMaintenanceTests: XCTestCase {
         let entry = try XCTUnwrap(try XCTUnwrap(manager.history).tasks().first)
         XCTAssertEqual(entry.action, "maintenance-run")
         XCTAssertEqual(entry.machine, "raspyellow")
-        XCTAssertEqual(entry.status, .success)
+        XCTAssertEqual(entry.status, .failure,
+                       "une coche sur une action qui n'a pas eu lieu serait pire qu'aucune entrée")
+        XCTAssertNotNil(entry.finishedAt)
         XCTAssertTrue(entry.output.contains("notDeployed"), entry.output)
+    }
+
+    /// Les deux autres verdicts négatifs que le serveur peut rendre sans que rien ne lance :
+    /// un jeton de plan brûlé (409) et une action qui a bien tourné mais a échoué.
+    func testRefusedTokenAndFailedResultBothJournalAFailure() async throws {
+        let (manager, _) = makeManager(historyPath: dbPath) { request in
+            request.url?.path.hasSuffix("/dry-run") == true
+                ? HTTPReply(status: 409, body: Data())
+                : self.ok(#"{"ok": false, "message": "dpkg est verrouillé"}"#)
+        }
+
+        let plan = try await manager.maintenancePlan(.aptUpdate, on: machine)
+        XCTAssertEqual(plan, .staleToken)
+        let run = try await manager.maintenanceRun(.aptUpdate, planID: "abc", on: machine)
+        XCTAssertEqual(run, .completed(ExploitResult(ok: false, message: "dpkg est verrouillé",
+                                                      detail: [:], planID: nil)))
+
+        let entries = try XCTUnwrap(manager.history).tasks()
+        XCTAssertEqual(entries.map(\.action), ["maintenance-run", "maintenance-plan"])
+        XCTAssertTrue(entries.allSatisfy { $0.status == .failure }, "\(entries.map(\.status))")
+        // Et le verrou est bien rendu dans les deux cas.
+        XCTAssertNil(try XCTUnwrap(manager.history).currentLock(machine: "raspcorse"))
+    }
+
+    /// La conséquence assumée de la profondeur `@TaskLocal` : deux plans concurrents sur la
+    /// **même** machine ne sont plus deux compositions imaginaires — ce sont deux actions,
+    /// et elles se disputent le verrou. Deux `apt-get update` simultanés sur un Pi, c'est
+    /// exactement ce qu'AD-12 existe pour empêcher.
+    ///
+    /// Avec la profondeur partagée d'avant, le second se serait exécuté **nu** : ni entrée
+    /// au journal, ni verrou, et sans un mot.
+    func testConcurrentPlansOnTheSameMachineContendForTheLock() async throws {
+        let inFlight = Signal(), proceed = Signal()
+        let (manager, log) = makeManager(historyPath: dbPath) { _ in
+            inFlight.fire()
+            await proceed.wait()
+            return self.ok(self.planJSON)
+        }
+
+        // Le premier plan part dans sa propre tâche et se suspend dans son corps, verrou tenu.
+        async let first = manager.maintenancePlan(.aptUpdate, on: machine)
+        await inFlight.wait()
+
+        do {
+            _ = try await manager.maintenancePlan(.aptUpdate, on: machine)
+            XCTFail("le second plan concurrent doit se heurter au verrou du premier")
+        } catch is LockContentionError {
+            // attendu
+        }
+
+        proceed.fire()
+        let outcome = try await first
+        guard case .completed(let result) = outcome else { return XCTFail("attendu un plan abouti") }
+        XCTAssertEqual(result.planID, "abc")
+
+        XCTAssertEqual(log.all.count, 1, "seul le premier plan a atteint le réseau")
+        let entries = try XCTUnwrap(manager.history).tasks()
+        XCTAssertEqual(entries.map(\.action), ["maintenance-plan"], "le refus ne journalise pas")
+        XCTAssertEqual(entries.first?.status, .success)
+        XCTAssertNil(try XCTUnwrap(manager.history).currentLock(machine: "raspcorse"))
     }
 
     /// La doctrine 1.2 étendue au chemin `async` : pas de base utilisable, donc ni journal

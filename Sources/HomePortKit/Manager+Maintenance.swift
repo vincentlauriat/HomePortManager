@@ -27,7 +27,7 @@ extension HomeportManager {
     /// apt operation it fails, or makes the other one fail. So it locks like an execution:
     /// AD-16 draws the line at GET versus POST, not at "plan" versus "run".
     public func maintenancePlan(_ action: ExploitAction, on machine: Machine) async throws -> ExploitOutcome {
-        try await journaled("maintenance-plan", on: machine, locking: true) {
+        try await journaled("maintenance-plan", on: machine, locking: true, succeeded: Self.isSuccess) {
             let outcome = await exploit.dryRun(action, on: machine)
             report("dry-run \(action.name) sur \(machine.name) — \(Self.summary(of: outcome))")
             return outcome
@@ -36,11 +36,21 @@ extension HomeportManager {
 
     public func maintenanceRun(_ action: ExploitAction, planID: String,
                                on machine: Machine) async throws -> ExploitOutcome {
-        try await journaled("maintenance-run", on: machine, locking: true) {
+        try await journaled("maintenance-run", on: machine, locking: true, succeeded: Self.isSuccess) {
             let outcome = await exploit.execute(action, planID: planID, on: machine)
             report("\(action.name) sur \(machine.name) — \(Self.summary(of: outcome))")
             return outcome
         }
+    }
+
+    /// The status the journal entry closes with. Nothing here throws — the invariant that
+    /// no contract failure is an error holds, the caller always gets a value — but the
+    /// journal must still say what happened: an expired token, an action this Pi does not
+    /// serve, an unreachable machine or an `ok: false` are not successes. A tick in
+    /// `hpm tasks` against an action that never ran is worse than no entry at all.
+    static func isSuccess(_ outcome: ExploitOutcome) -> Bool {
+        if case .completed(let result) = outcome { return result.ok }
+        return false
     }
 
     /// The delegated body says nothing on the report stream of its own — the narrative
@@ -48,8 +58,7 @@ extension HomeportManager {
     /// would close with an empty `output`: a record of *when* an action ran and nothing of
     /// what it did.
     ///
-    /// It carries the verdict because the `status` cannot: nothing throws here, so the seam
-    /// closes every entry as `.success`, including a refused or unreachable outcome.
+    /// It carries the detail; `isSuccess` carries the verdict.
     static func summary(of outcome: ExploitOutcome) -> String {
         switch outcome {
         case .completed(let result):
