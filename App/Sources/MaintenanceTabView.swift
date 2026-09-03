@@ -198,12 +198,19 @@ struct MaintenanceTabView: View {
                 // retry. An `assertionFailure` plus a plain `.failure` report is honest about
                 // an invariant break instead of defending it with a message that misdescribes
                 // what happened.
+                //
+                // The message is built here, not via `describe(_:)` (fix round 2, task 6c-A):
+                // `describe` promises to be the only phrasing of each *reachable* state, and
+                // this branch is not one — feeding it a state the machine isn't in violates
+                // that contract. It also must not reuse `describe(.unreachable(...))`'s wording,
+                // which names causes (machine off, service stopped, ACL) that do not apply
+                // here and would misdirect the reader. The only true fact is that nothing ran.
                 case .executionTimedOut:
                     assertionFailure("executionTimedOut from a dry-run: ExploitAPIClient.post only "
                                      + "produces it for the execute phase")
                     maintenanceReport = FleetModel.LastReport(
                         kind: .failure,
-                        message: describe(.unreachable("executionTimedOut inattendu pendant un dry-run")))
+                        message: String(localized: "maintenance.preview.inconsistentState"))
                 }
             }
         }

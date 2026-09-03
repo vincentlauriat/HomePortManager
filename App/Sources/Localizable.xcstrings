@@ -4812,6 +4812,30 @@
         }
       }
     },
+    "maintenance.preview.inconsistentState": {
+      "comment": "Maintenance preview sheet — the .executionTimedOut outcome is structurally unreachable from a dry-run (ExploitAPIClient.post only produces it for the execute phase); this fires only if that invariant breaks. Must not reuse describe(_:) (ExploitAPIContract.swift's \"only phrasing of each state\" contract covers states the machine can actually be in) and must not claim any of describe(.unreachable)'s causes (machine off, service down, ACL) — nothing here says why, only that nothing ran.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Internal inconsistency before execution — nothing was launched. Retry the preview."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incohérence interne avant exécution — aucune action n'a été lancée. Relancez l'aperçu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行前检测到内部不一致——未启动任何操作。请重试预览。"
+          }
+        }
+      }
+    },
     "maintenance.reboot.poweroff": {
       "comment": "Maintenance tab reboot card — powers the machine off.",
       "extractionState": "manual",
