@@ -49,8 +49,15 @@ extension HomeportManager {
     /// serve, an unreachable machine or an `ok: false` are not successes. A tick in
     /// `hpm tasks` against an action that never ran is worse than no entry at all.
     static func isSuccess(_ outcome: ExploitOutcome) -> Bool {
-        if case .completed(let result) = outcome { return result.ok }
-        return false
+        // Switch exhaustif (m1, tâche 6b, tour 1) — le comportement ne change pas (seul
+        // `.completed` avec `result.ok` était déjà vrai), mais un futur cas d'`ExploitOutcome`
+        // sera désormais signalé par le compilateur ici, au CLI (`Sources/hpm/Commands.swift`)
+        // et dans l'onglet (`App/Sources/MaintenanceTabView.swift`) au lieu de retomber
+        // silencieusement du côté `false`.
+        switch outcome {
+        case .completed(let result): return result.ok
+        case .staleToken, .unknownAction, .unavailable, .executionTimedOut: return false
+        }
     }
 
     /// The delegated body says nothing on the report stream of its own — the narrative

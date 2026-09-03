@@ -76,8 +76,17 @@ struct MaintenanceTabView: View {
             if case .available(let caps) = capabilities {
                 actionsSection(caps: caps)
                 homeportConfigSection
-                historySection
             }
+            // Fix round 1, m3: pulled out of the `.available` guard above. History is its own
+            // read (`maintenanceAudit`, fetched unconditionally in `load()`), not gated on the
+            // machine currently being reachable — and `maintenance.execute.uncertain.detail`
+            // points at "the history below" from a banner that can outlive `.available`: an
+            // uncertain `execute` followed by `reloadUnlessRebooting` can turn a reachable
+            // machine unreachable between the click and the re-poll. Keeping the card here
+            // (it already renders `describe(state)` on a failed `auditResult`, same as before)
+            // keeps that sentence true in both cases instead of having it point at a card that
+            // just vanished.
+            historySection
         }
         .task { await load() }
         .sheet(item: $pendingPlan) { plan in
@@ -182,10 +191,19 @@ struct MaintenanceTabView: View {
                     maintenanceReport = FleetModel.LastReport(kind: .failure, message: describe(state))
                 // A2 (task 6b): unreachable in practice — `maintenancePlan` always dry-runs,
                 // and `ExploitAPIClient.post` produces this outcome only for the `execute`
-                // phase (see `ExploitOutcome.executionTimedOut`). Kept for exhaustiveness and
-                // to stay correct if that invariant ever breaks.
+                // phase (see `ExploitOutcome.executionTimedOut`). Kept for exhaustiveness, but
+                // not with `maintenanceUncertain = true` (fix round 1, m2): that banner reads
+                // "the server may have completed the action" — true for a stuck `execute`,
+                // a lie for a dry-run, which never consumes a plan and is always safe to
+                // retry. An `assertionFailure` plus a plain `.failure` report is honest about
+                // an invariant break instead of defending it with a message that misdescribes
+                // what happened.
                 case .executionTimedOut:
-                    maintenanceUncertain = true
+                    assertionFailure("executionTimedOut from a dry-run: ExploitAPIClient.post only "
+                                     + "produces it for the execute phase")
+                    maintenanceReport = FleetModel.LastReport(
+                        kind: .failure,
+                        message: describe(.unreachable("executionTimedOut inattendu pendant un dry-run")))
                 }
             }
         }
