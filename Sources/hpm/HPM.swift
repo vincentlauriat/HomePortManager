@@ -16,7 +16,7 @@ struct HPM: AsyncParsableCommand {
             MachineCmd.self, StatusCmd.self, ReleasesCmd.self, PrereqsCmd.self,
             InstallCmd.self, UpdateCmd.self, BackupCmd.self, RestoreCmd.self,
             ConfigCmd.self, RemoveCmd.self, LogsCmd.self, RestartCmd.self, DoctorCmd.self,
-            TasksCmd.self, EventsCmd.self, MetricsCmd.self, UnlockCmd.self,
+            TasksCmd.self, EventsCmd.self, MetricsCmd.self, UnlockCmd.self, MaintenanceCmd.self,
         ]
     )
 }

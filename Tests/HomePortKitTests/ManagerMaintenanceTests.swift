@@ -367,4 +367,47 @@ final class ManagerMaintenanceTests: XCTestCase {
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
         XCTAssertEqual(json, ["mode": "poweroff", "plan_id": "tok-1"])
     }
+
+    // MARK: - describe
+
+    /// Le rendu des états est la seule partie testable sans process : `describe(_:)` est
+    /// partagée par `hpm maintenance` et l'onglet SwiftUI, donc chaque état doit se
+    /// distinguer par sa propre cause dans le texte, pas seulement par sa forme.
+    func testEachStateRendersItsOwnCause() {
+        XCTAssertTrue(describe(.notDeployed).contains("pas déployé"))
+        XCTAssertTrue(describe(.forbidden).contains("admin"))
+        XCTAssertTrue(describe(.unavailable(.notServed)).contains("trop ancien"))
+        XCTAssertTrue(describe(.unavailable(.outOfRange("2.0.0"))).contains("2.0.0"))
+        // Le piège qui a coûté une demi-journée au déploiement initial : un timeout est
+        // indiscernable d'une panne machine si le message ne nomme pas l'ACL.
+        XCTAssertTrue(describe(.unreachable("timed out")).contains("ACL Tailscale"))
+    }
+
+    /// `.cancelled` n'est pas dans le tableau du brief — un simple switch exhaustif oblige
+    /// à le rendre malgré tout, et il ne doit jamais se lire comme une panne de la machine
+    /// (c'est la tâche appelante qui a disparu, pas le Pi).
+    func testCancelledIsNeverPhrasedAsAMachineFailure() {
+        let message = describe(.cancelled)
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(message.lowercased().contains("injoignable"))
+        XCTAssertFalse(message.lowercased().contains("panne"))
+    }
+
+    func testAvailableNamesTheServerAndItsActions() {
+        let caps = ExploitCapabilities(contract: SemanticVersion(1, 0, 0), server: "0.2.0",
+                                       actions: ["apt-update", "reboot"])
+        let message = describe(.available(caps))
+        XCTAssertTrue(message.contains("0.2.0"))
+        XCTAssertTrue(message.contains("apt-update"))
+        XCTAssertTrue(message.contains("reboot"))
+    }
+
+    /// Les deux raisons d'`.unavailable` se réparent différemment (déployer vs. mettre à
+    /// jour) : leurs messages ne doivent jamais se confondre l'un avec l'autre.
+    func testNotServedAndOutOfRangeStayDistinguishable() {
+        let notServed = describe(.unavailable(.notServed))
+        let outOfRange = describe(.unavailable(.outOfRange("2.0.0")))
+        XCTAssertNotEqual(notServed, outOfRange)
+        XCTAssertFalse(notServed.contains("2.0.0"))
+    }
 }

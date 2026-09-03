@@ -655,6 +655,150 @@ struct MetricsCmd: AsyncParsableCommand {
     }
 }
 
+// MARK: - maintenance
+
+/// The CLI surface for the actions HomePortExploit delegates on the Pi (`hpm update` stays
+/// "update Homeport to a tagged release" — this group is deliberately named apart from it).
+/// Every state `describe(_:)` renders comes from `ExploitAPIContract.swift`, shared with the
+/// SwiftUI tab: one formulation per state, never two that could drift apart.
+struct MaintenanceCmd: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "maintenance",
+        abstract: "Run HomePortExploit maintenance actions on a machine.",
+        subcommands: [Actions.self, Plan.self, Run.self, History.self]
+    )
+
+    struct Actions: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "What this machine serves, or why it serves nothing.")
+        @Argument var machine: String
+
+        func run() async throws {
+            let target = try FleetStore().machine(named: self.machine)
+            let state = await makeManager().maintenanceCapabilities(of: target)
+            print(describe(state))
+            if case .available = state { return }
+            throw ExitCode(1)
+        }
+    }
+
+    struct Plan: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Dry-run an action and show its preview, without executing it.")
+        @Argument var machine: String
+        @Argument var action: String
+        @Option(help: "reboot | poweroff (reboot only).") var mode: String?
+        @Option(help: "Docker service name (docker-update only).") var service: String?
+
+        func run() async throws {
+            let target = try FleetStore().machine(named: self.machine)
+            let parsed = try ExploitAction(name: action, mode: mode, service: service)
+
+            switch try await makeManager().maintenancePlan(parsed, on: target) {
+            case .completed(let preview):
+                print(preview.message)
+                preview.detail.displayLines.forEach { print("  \($0)") }
+                if !preview.ok { throw ExitCode(1) }
+            case .staleToken:
+                print("jeton de plan expiré ou déjà consommé — relancer la commande")
+                throw ExitCode(1)
+            case .unknownAction:
+                print("action absente du catalogue de cette machine")
+                throw ExitCode(1)
+            case .unavailable(let state):
+                print(describe(state))
+                throw ExitCode(1)
+            }
+        }
+    }
+
+    struct Run: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Dry-run, show the preview, confirm, then execute.")
+        @Argument var machine: String
+        @Argument var action: String
+        @Option(help: "reboot | poweroff (reboot only).") var mode: String?
+        @Option(help: "Docker service name (docker-update only).") var service: String?
+        @Flag(name: .long, help: "Skip the interactive question. The preview is still shown.") var yes = false
+
+        /// Always chains the dry-run first: it is the only way to obtain a `plan_id`, and
+        /// the server refuses (409) without one. `--yes` only skips the interactive
+        /// question — the preview always prints. A token is burned by the attempt, not by
+        /// success (§ contract), so no `plan_id` is ever reused across invocations.
+        func run() async throws {
+            let target = try FleetStore().machine(named: self.machine)
+            let manager = makeManager()
+            let parsed = try ExploitAction(name: action, mode: mode, service: service)
+
+            guard case .completed(let preview) = try await manager.maintenancePlan(parsed, on: target) else {
+                print("prévisualisation impossible"); throw ExitCode(1)
+            }
+            print(preview.message)
+            preview.detail.displayLines.forEach { print("  \($0)") }
+            guard preview.ok, let planID = preview.planID else { throw ExitCode(1) }
+
+            if !yes {
+                print("Exécuter ? [o/N] ", terminator: "")
+                guard let answer = readLine()?.lowercased(), answer == "o" || answer == "oui" else {
+                    print("annulé"); return
+                }
+            }
+            switch try await manager.maintenanceRun(parsed, planID: planID, on: target) {
+            case .completed(let result):
+                print(result.message)
+                if !result.ok { throw ExitCode(1) }
+            case .staleToken:
+                print("prévisualisation expirée (jeton valable 5 minutes) — relancer la commande")
+                throw ExitCode(1)
+            case .unknownAction:
+                print("action absente du catalogue de cette machine")
+                throw ExitCode(1)
+            case .unavailable(let state):
+                print(describe(state)); throw ExitCode(1)
+            }
+        }
+    }
+
+    struct History: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "history", abstract: "Show the maintenance actions HomePortExploit has recorded for a machine.")
+        @Argument var machine: String
+        @Option(name: [.customShort("n"), .customLong("limit")], help: "Number of entries (default: 50).") var limit: Int?
+
+        func run() async throws {
+            let target = try FleetStore().machine(named: self.machine)
+            let limit = self.limit ?? 50
+            guard limit >= 1 else { throw HPMError("--limit must be at least 1") }
+
+            switch await makeManager().maintenanceAudit(of: target, limit: limit) {
+            case .success(let entries):
+                guard !entries.isEmpty else {
+                    print("No maintenance action recorded for '\(target.name)'.")
+                    return
+                }
+                printTable(Self.rows(for: entries))
+            case .failure(let state):
+                print(describe(state))
+                throw ExitCode(1)
+            }
+        }
+
+        /// The table's exact shape, pulled out of `run` so the format can be checked
+        /// without exercising any I/O — same doctrine as `EventsCmd.rows`/`MetricsCmd.rows`.
+        static func rows(for entries: [ExploitAuditEntry]) -> [[String]] {
+            var rows: [[String]] = [["DATE", "IDENTITY", "ACTION", "PARAMS", "DRY-RUN", "STATUS", "MESSAGE"]]
+            for entry in entries {
+                rows.append([
+                    HistoryStore.iso8601String(from: entry.timestamp),
+                    entry.identity,
+                    entry.action,
+                    entry.params,
+                    entry.dryRun ? "yes" : "no",
+                    entry.ok ? "ok" : "failed",
+                    entry.message,
+                ])
+            }
+            return rows
+        }
+    }
+}
+
 // MARK: - unlock
 
 struct UnlockCmd: ParsableCommand {
