@@ -303,7 +303,7 @@ git commit -m "feat: add executable HomePortExploit contract with five machine s
   - `func execute(_ action: ExploitAction, planID: String, on: Machine) async -> ExploitOutcome`
   - `func audit(of: Machine, limit: Int) async -> Result<[ExploitAuditEntry], ExploitAvailability>`
   - `func dockerServices(of: Machine) async -> Result<[ExploitDockerService], ExploitAvailability>`
-  - `func homeportConfig(of: Machine) async -> Result<String, ExploitAvailability>` (lecture seule)
+  - `func homeportConfig(of: Machine) async -> Result<String?, ExploitAvailability>` — `.success(nil)` signifie « configuration absente ou illisible », le 404 propre à cette route. Ce n'est **pas** `.unavailable(.notServed)` : ce 404-là ne dit rien sur l'âge du serveur.
   - `ExploitResult.detail: [String: JSONValue]` avec `var displayLines: [String]`
   - `ExploitAction.init(name:mode:service:) throws` — initialiseur faillible consommé par le CLI (tâche 5)
 
@@ -532,14 +532,23 @@ public enum ExploitOutcome: Equatable, Sendable {
     case unavailable(ExploitAvailability)
 }
 
-public struct ExploitAuditEntry: Equatable, Sendable, Identifiable {
-    public let id: Int64
-    public let timestamp: Date
+/// Une ligne du journal du Pi, telle que `audit.recent()` la sert : sept champs, et **pas
+/// d'identifiant**. Le serveur n'en expose aucun ; en fabriquer un serait inventer un champ que
+/// le contrat ne porte pas, donc ce type n'est délibérément pas `Identifiable` — c'est à la vue
+/// de fournir l'identité de ses lignes.
+public struct ExploitAuditEntry: Equatable, Sendable {
+    /// Secondes Unix, telles que servies. `timestamp` en est la lecture commode.
+    public let ts: Int
     public let identity: String
     public let action: String
+    /// JSON sérialisé, servi comme une chaîne. Transporté sans être interprété (AD-4).
+    public let params: String
+    /// Servis en entiers 0/1 par SQLite, exposés en booléens ici.
     public let dryRun: Bool
     public let ok: Bool
     public let message: String
+
+    public var timestamp: Date { Date(timeIntervalSince1970: TimeInterval(ts)) }
 }
 
 public struct ExploitDockerService: Equatable, Sendable, Identifiable {
