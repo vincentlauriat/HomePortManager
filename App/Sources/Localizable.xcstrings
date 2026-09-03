@@ -5004,6 +5004,30 @@
         }
       }
     },
+    "maintenance.state.refresh": {
+      "comment": "Task 6b (n2): the reload button under the .available pill (a green \"Disponible\" badge) reused \"Retry\", which announces a failure where none happened. Distinct key, used only there — the .unreachable/.unavailable/.forbidden card below keeps \"Retry\", which is accurate there.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiser"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新"
+          }
+        }
+      }
+    },
     "maintenance.unknownAction": {
       "comment": "Maintenance dry-run/execute — 404: this Pi's catalog does not include the action (distinct from the service being too old).",
       "extractionState": "manual",

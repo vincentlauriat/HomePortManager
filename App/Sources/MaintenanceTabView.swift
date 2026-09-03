@@ -50,7 +50,16 @@ struct MaintenanceTabView: View {
     /// per-machine lock (AD-12) is shared with `FleetModel.run`'s own actions, so a Backup in
     /// flight would otherwise make a dry-run here fail with a raw lock-contention error
     /// instead of simply being unavailable to start.
-    private var busy: Bool { model.inFlight[machine.name] != nil || maintenanceBusy }
+    ///
+    /// n3 (fix round 2): `externalLock` was missing here. Not a regression — the mechanism was
+    /// simply incomplete on its own terms: a ⌘1 then ⌘9 mid-action destroys this view (and
+    /// `maintenanceBusy` with it) while `externalLock` — held by the surviving `Task` inside
+    /// `withExternalLock`, not by this view — still names the machine. Without this term, the
+    /// buttons re-enable and a second call hits the kit's raw lock, exactly the defect I4
+    /// exists to prevent.
+    private var busy: Bool {
+        model.inFlight[machine.name] != nil || maintenanceBusy || model.externalLock.contains(machine.name)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
@@ -325,7 +334,11 @@ struct MaintenanceTabView: View {
                     // (`ControlCenterView`), never this tab's own four reads, and leaving the
                     // tab and coming back is the only other way to get `.task` to run again.
                     //
-                    Button { Task { await load() } } label: { Text("Retry") }
+                    // n2 (fix round 2): "Retry" ("Réessayer") under a green "Available" pill
+                    // announces a failure where none happened — a dedicated key, used only
+                    // here. The `.unreachable`/`.unavailable`/`.forbidden` card below keeps
+                    // "Retry": there, a retry is exactly what it is.
+                    Button { Task { await load() } } label: { Text("maintenance.state.refresh") }
                         .buttonStyle(PillButtonStyle(kind: .secondary))
                 }
                 .accessibilityElement(children: .combine)
