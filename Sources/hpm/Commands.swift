@@ -668,13 +668,41 @@ struct MaintenanceCmd: AsyncParsableCommand {
         subcommands: [Actions.self, Plan.self, Run.self, History.self]
     )
 
+    /// Dry-runs `action` and renders it exactly once, so `Plan` and `Run` can never drift
+    /// into two different diagnostics for the same outcome (fix round 1: `Run` used to
+    /// collapse `staleToken`/`unknownAction`/`unavailable` into one generic "prévisualisation
+    /// impossible", losing precisely the states this task exists to keep distinguishable).
+    /// `nil` means the caller already printed everything there is to say and must exit 1.
+    static func preview(_ action: ExploitAction, on target: Machine,
+                        using manager: HomeportManager) async throws -> ExploitResult? {
+        switch try await manager.maintenancePlan(action, on: target) {
+        case .completed(let result):
+            print(result.message)
+            result.detail.displayLines.forEach { print("  \($0)") }
+            return result
+        case .staleToken:
+            print("jeton de plan expiré ou déjà consommé — relancer la commande")
+            return nil
+        case .unknownAction:
+            print("action absente du catalogue de cette machine")
+            return nil
+        case .unavailable(let state):
+            print(describe(state))
+            return nil
+        }
+    }
+
     struct Actions: AsyncParsableCommand {
         static let configuration = CommandConfiguration(abstract: "What this machine serves, or why it serves nothing.")
         @Argument var machine: String
 
+        // journal: false — a read, like `maintenanceCapabilities` itself documents ("never
+        // journaled"). `makeManager()` would open `HistoryStore()` without SQLITE_OPEN_READONLY
+        // and create hpm.db on a machine that has never run an action, plausibly on the very
+        // first command typed against a freshly deployed service.
         func run() async throws {
             let target = try FleetStore().machine(named: self.machine)
-            let state = await makeManager().maintenanceCapabilities(of: target)
+            let state = await makeManager(journal: false).maintenanceCapabilities(of: target)
             print(describe(state))
             if case .available = state { return }
             throw ExitCode(1)
@@ -692,21 +720,10 @@ struct MaintenanceCmd: AsyncParsableCommand {
             let target = try FleetStore().machine(named: self.machine)
             let parsed = try ExploitAction(name: action, mode: mode, service: service)
 
-            switch try await makeManager().maintenancePlan(parsed, on: target) {
-            case .completed(let preview):
-                print(preview.message)
-                preview.detail.displayLines.forEach { print("  \($0)") }
-                if !preview.ok { throw ExitCode(1) }
-            case .staleToken:
-                print("jeton de plan expiré ou déjà consommé — relancer la commande")
-                throw ExitCode(1)
-            case .unknownAction:
-                print("action absente du catalogue de cette machine")
-                throw ExitCode(1)
-            case .unavailable(let state):
-                print(describe(state))
+            guard let preview = try await MaintenanceCmd.preview(parsed, on: target, using: makeManager()) else {
                 throw ExitCode(1)
             }
+            if !preview.ok { throw ExitCode(1) }
         }
     }
 
@@ -727,11 +744,9 @@ struct MaintenanceCmd: AsyncParsableCommand {
             let manager = makeManager()
             let parsed = try ExploitAction(name: action, mode: mode, service: service)
 
-            guard case .completed(let preview) = try await manager.maintenancePlan(parsed, on: target) else {
-                print("prévisualisation impossible"); throw ExitCode(1)
+            guard let preview = try await MaintenanceCmd.preview(parsed, on: target, using: manager) else {
+                throw ExitCode(1)
             }
-            print(preview.message)
-            preview.detail.displayLines.forEach { print("  \($0)") }
             guard preview.ok, let planID = preview.planID else { throw ExitCode(1) }
 
             if !yes {
@@ -761,15 +776,16 @@ struct MaintenanceCmd: AsyncParsableCommand {
         @Argument var machine: String
         @Option(name: [.customShort("n"), .customLong("limit")], help: "Number of entries (default: 50).") var limit: Int?
 
+        // journal: false — a read, like `maintenanceAudit` itself documents ("never
+        // journaled, like maintenanceCapabilities"): must not bring hpm.db into existence.
         func run() async throws {
             let target = try FleetStore().machine(named: self.machine)
-            let limit = self.limit ?? 50
-            guard limit >= 1 else { throw HPMError("--limit must be at least 1") }
+            let limit = try Self.validateLimitOption(self.limit)
 
-            switch await makeManager().maintenanceAudit(of: target, limit: limit) {
+            switch await makeManager(journal: false).maintenanceAudit(of: target, limit: limit) {
             case .success(let entries):
                 guard !entries.isEmpty else {
-                    print("No maintenance action recorded for '\(target.name)'.")
+                    print("Aucune action de maintenance enregistrée pour '\(target.name)'.")
                     return
                 }
                 printTable(Self.rows(for: entries))
@@ -777,6 +793,16 @@ struct MaintenanceCmd: AsyncParsableCommand {
                 print(describe(state))
                 throw ExitCode(1)
             }
+        }
+
+        /// §8 : « sans borne haute imposée côté serveur en v1 — un client ne demande pas une
+        /// valeur déraisonnable. » Même doctrine que `EventsCmd.validateLimitOption`.
+        static func validateLimitOption(_ raw: Int?) throws -> Int {
+            let limit = raw ?? 50
+            guard (1...1000).contains(limit) else {
+                throw HPMError("--limit must be between 1 and 1000")
+            }
+            return limit
         }
 
         /// The table's exact shape, pulled out of `run` so the format can be checked
