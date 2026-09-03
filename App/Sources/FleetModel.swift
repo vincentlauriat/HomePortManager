@@ -28,6 +28,13 @@ final class FleetModel: ObservableObject {
     /// One entry per machine at most: the kit's inter-process lock refuses the rest, this
     /// dictionary is only the intra-app guard and the "… in progress" source.
     @Published var inFlight: [String: Action] = [:]
+    /// Machines a lane outside `run(_:on:)` currently mutates — Maintenance's dry-run/execute
+    /// (task 6), which shares the kit's per-machine lock (AD-12) but has no `Action` case of
+    /// its own (adding one would ripple `title`/`progressLabel`/`needsConfirmation`/
+    /// `isDestructive`/`sheetTitle`/`sheetConsequence`/`sheetConfirmTitle`, all exhaustive
+    /// switches — out of that task's scope). `run`'s own guard checks this too, so it refuses
+    /// visibly instead of reaching the kit's lock and throwing a raw `LockContentionError`.
+    @Published var externalLock: Set<String> = []
     /// The last action's persistent report per machine. `kind` keeps the headline
     /// honest: a doctor that *succeeded* but found failing checks is a `finding`,
     /// not a failed action — only real failures may be announced as such.
@@ -48,7 +55,15 @@ final class FleetModel: ObservableObject {
 
     private let blockStore = MachineBlockStore()
     private var timer: Timer?
-    private let makeManager: (@escaping Reporter) -> HomeportManager
+    /// Not `private`: `MaintenanceTabView` needs the exact same `let factory = makeManager;
+    /// Task.detached { let manager = factory { _ in } … }` shape every mutation here already
+    /// uses (Global Constraint — never a cached manager instance, and the manager must be
+    /// built *inside* the detached task, or the non-`Sendable` `HomeportManager` would cross
+    /// the boundary instead of the `Sendable` factory closure). A second, separately
+    /// constructed `HomeportManager` would also open its own `HistoryStore`, breaking "one
+    /// shared store for the whole app" (`history` below) that `journaled`'s lock and journal
+    /// depend on.
+    let makeManager: (@escaping Reporter) -> HomeportManager
     /// One shared store for the whole app: the model reads it, the managers built by the
     /// factory journal through it. nil when the state directory is unusable — the journal
     /// degrades, actions still run.
@@ -457,9 +472,13 @@ final class FleetModel: ObservableObject {
     }
 
     func run(_ action: Action, on machine: Machine) {
-        guard inFlight[machine.name] == nil else {
+        guard inFlight[machine.name] == nil, !externalLock.contains(machine.name) else {
             // A confirmation landing while the machine already mutates (menubar race, a
-            // sheet confirmed late) must refuse visibly, never evaporate silently.
+            // sheet confirmed late) must refuse visibly, never evaporate silently. Also true
+            // when the lock is `externalLock`'s, not `inFlight`'s (task 6 fix round, I4):
+            // without this, a Backup started from Summary while Maintenance holds the kit's
+            // per-machine lock (AD-12) would reach it anyway and throw a raw
+            // `LockContentionError` instead of refusing here, in this app's own words.
             lastError[machine.name] = LastReport(
                 kind: .failure,
                 message: String(localized: "Another action is already in progress on this machine."))

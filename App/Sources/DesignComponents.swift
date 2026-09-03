@@ -222,7 +222,7 @@ struct FilterField: View {
 ///
 /// The candidates are enumerated rather than generated: a `ForEach` inside `ViewThatFits`
 /// collapses to a single candidate, and its ten-subview ceiling covers both call sites
-/// (eight tabs, seven actions). `ViewThatFits` takes the first that fits, so the widest
+/// (nine tabs, seven actions). `ViewThatFits` takes the first that fits, so the widest
 /// split is listed first. Splits wider than `items.count` render identically to the full
 /// row, which is harmless.
 ///

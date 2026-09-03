@@ -48,4 +48,24 @@ final class FleetStoreTests: XCTestCase {
     func testDefaultPort() {
         XCTAssertEqual(Machine(name: "x", ssh: "x").port, 80)
     }
+
+    func testMachineWithoutExploitPortRoundTripsWithoutNullKey() throws {
+        let path = NSTemporaryDirectory() + "fleet-\(UUID().uuidString).yaml"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let store = FleetStore(path: path)
+        try store.save(Fleet(machines: [Machine(name: "raspyellow", ssh: "vincent@raspyellow", port: 80)]))
+
+        let written = try String(contentsOfFile: path, encoding: .utf8)
+        // Un optionnel absent ne doit pas gagner de clé : le fichier de Vincent est écrit à la main.
+        XCTAssertFalse(written.contains("exploitPort"))
+        XCTAssertNil(try store.load().machines[0].exploitPort)
+    }
+
+    func testExploitPortSurvivesRoundTrip() throws {
+        let path = NSTemporaryDirectory() + "fleet-\(UUID().uuidString).yaml"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let store = FleetStore(path: path)
+        try store.save(Fleet(machines: [Machine(name: "raspcorse", ssh: "raspcorse", port: 80, exploitPort: 8081)]))
+        XCTAssertEqual(try store.load().machines[0].exploitPort, 8081)
+    }
 }

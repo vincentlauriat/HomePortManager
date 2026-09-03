@@ -187,6 +187,30 @@
         }
       }
     },
+    "Actions": {
+      "comment": "Maintenance tab section title, above the served-action cards.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actions"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作"
+          }
+        }
+      }
+    },
     "Actions run on this machine from this Mac — app or command line — will appear here.": {
       "extractionState": "manual",
       "localizations": {
@@ -459,6 +483,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除筛选即可重新查看整个机群。"
+          }
+        }
+      }
+    },
+    "Close": {
+      "comment": "Generic dismiss button for a sheet that has nothing to confirm — e.g. the maintenance preview when the dry-run itself failed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
           }
         }
       }
@@ -806,6 +854,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "诊断：所有检查通过"
+          }
+        }
+      }
+    },
+    "Dry run": {
+      "comment": "Maintenance history table column header.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dry run"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aperçu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览"
           }
         }
       }
@@ -1592,6 +1664,53 @@
         }
       }
     },
+    "Maintenance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maintenance"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maintenance"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "维护"
+          }
+        }
+      }
+    },
+    "Message": {
+      "comment": "Maintenance history table column header.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息"
+          }
+        }
+      }
+    },
     "Metrics": {
       "extractionState": "manual",
       "localizations": {
@@ -2077,6 +2196,30 @@
         }
       }
     },
+    "Power off %@": {
+      "comment": "Maintenance preview sheet title for poweroff.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power off %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Éteindre %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭 %@"
+          }
+        }
+      }
+    },
     "Quit": {
       "extractionState": "manual",
       "localizations": {
@@ -2096,6 +2239,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出"
+          }
+        }
+      }
+    },
+    "Reboot %@": {
+      "comment": "Maintenance preview sheet title for reboot.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reboot %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrer %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启 %@"
           }
         }
       }
@@ -3486,6 +3653,30 @@
         }
       }
     },
+    "Update Docker service on %@": {
+      "comment": "Maintenance preview sheet title for docker-update.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Docker service on %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour le service Docker sur %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %@ 上更新 Docker 服务"
+          }
+        }
+      }
+    },
     "Update available": {
       "extractionState": "manual",
       "localizations": {
@@ -3578,6 +3769,54 @@
         }
       },
       "comment": "Updates tab's own call to action — distinct from the Summary action bar's noun-titled “Update” pill."
+    },
+    "Update packages": {
+      "comment": "Maintenance tab apt-update card title and button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update packages"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour les paquets"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新软件包"
+          }
+        }
+      }
+    },
+    "Update packages on %@": {
+      "comment": "Maintenance preview sheet title for apt-update.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update packages on %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour les paquets sur %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %@ 上更新软件包"
+          }
+        }
+      }
     },
     "Updates": {
       "extractionState": "manual",
@@ -3993,6 +4232,846 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法读取 fleet.yaml"
+          }
+        }
+      }
+    },
+    "maintenance.aptUpdate.cardTitle": {
+      "comment": "Fix round 1 (m4): apt-update card's own title, distinct from its button's — the two used to say the same thing twice.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System packages"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paquets système"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统软件包"
+          }
+        }
+      }
+    },
+    "maintenance.config.notFound": {
+      "comment": "Maintenance tab config section — GET /homeport-config/current answered 200 with no file (absent or unreadable on the Pi), never a raw error.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homeport configuration not found."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration Homeport introuvable."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到 Homeport 配置。"
+          }
+        }
+      }
+    },
+    "maintenance.config.readOnlyHint": {
+      "comment": "Maintenance tab config section — states that editing stays a CLI operation.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only. To change it, run `hpm config push` from the command line."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture seule. Pour la modifier, exécutez `hpm config push` en ligne de commande."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读。如需修改，请在命令行运行 `hpm config push`。"
+          }
+        }
+      }
+    },
+    "maintenance.config.title": {
+      "comment": "Maintenance tab's read-only Homeport configuration section title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homeport configuration"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration Homeport"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homeport 配置"
+          }
+        }
+      }
+    },
+    "maintenance.confirm.execute": {
+      "comment": "Maintenance preview sheet's critical confirm button (UX-DR6) — runs the previewed action after its dry-run.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exécuter"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行"
+          }
+        }
+      }
+    },
+    "maintenance.docker.empty": {
+      "comment": "Maintenance tab docker-update card when GET /docker-services answers with an empty list.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Docker service found on this machine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun service Docker trouvé sur cette machine."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此机器上未找到 Docker 服务。"
+          }
+        }
+      }
+    },
+    "maintenance.docker.pick": {
+      "comment": "Maintenance tab docker-update service picker's placeholder row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a service…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisir un service…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择服务…"
+          }
+        }
+      }
+    },
+    "maintenance.docker.service": {
+      "comment": "Maintenance tab docker-update service picker's accessibility label (the picker itself is visually labelless).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Service"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Service"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务"
+          }
+        }
+      }
+    },
+    "maintenance.dockerUpdate.button": {
+      "comment": "Maintenance tab docker-update card button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update service"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour le service"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新服务"
+          }
+        }
+      }
+    },
+    "maintenance.dockerUpdate.title": {
+      "comment": "Maintenance tab docker-update card title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker service update"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise à jour d'un service Docker"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker 服务更新"
+          }
+        }
+      }
+    },
+    "maintenance.execute.staleToken": {
+      "comment": "Maintenance preview sheet — the confirmed execute answered 409: the plan_id is burned by the attempt, never replayed, and this is never shown as a raw error. Fix round 1 (m1): matches MaintenanceCmd.Run.run()'s own wording word for word — the CLI's \"(jeton valable 5 minutes)\" had been dropped.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview expired (the plan is valid for 5 minutes) — run it again."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prévisualisation expirée (jeton valable 5 minutes) — relancer l'action."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览已过期（计划令牌有效期为 5 分钟）——请重新运行。"
+          }
+        }
+      }
+    },
+    "maintenance.execute.success": {
+      "comment": "Fix round 1 (I2): headline of the box shown after a completed, ok:true execution — distinct from LastActionErrorView's two kinds, whose shared vocabulary ('reported problems') would misdescribe a clean success.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action completed"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action terminée"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作已完成"
+          }
+        }
+      }
+    },
+    "maintenance.execute.uncertain.detail": {
+      "comment": "Task 6b (A2): a transport timeout during execute, not a decoded reply — the server may have gone all the way (plan_id consumed, audit line written, update actually done) even though the client gave up waiting. Points at the History section already on this tab, which carries the real answer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transport timed out during execution. The server may have finished the action anyway — check the history below."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le délai de transport a été dépassé pendant l'exécution. Le serveur a peut-être quand même terminé l'action — consultez l'historique ci-dessous."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行过程中传输超时。服务器可能仍然完成了该操作——请查看下方的历史记录。"
+          }
+        }
+      }
+    },
+    "maintenance.execute.uncertain.title": {
+      "comment": "Task 6b (A2) headline: distinct from MaintenanceSuccessView's \"Action completed\" (no confirmed success) and from LastActionErrorView's failure/finding kinds (no confirmed failure either) — the outcome is genuinely unknown.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outcome unknown"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Issue inconnue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果未知"
+          }
+        }
+      }
+    },
+    "maintenance.history.empty": {
+      "comment": "Maintenance tab history section when GET /audit answers with no entries for this machine.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No maintenance action recorded for this machine yet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune action de maintenance enregistrée pour cette machine."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此机器尚无维护操作记录。"
+          }
+        }
+      }
+    },
+    "maintenance.history.empty.title": {
+      "comment": "Fix round 1 (m5): the history empty state's own title, distinct from the section header above it — same pattern as MachineDetailView.recentTasks's \"No tasks yet\" under its own \"Recent tasks\" header.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No history"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun historique"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无历史"
+          }
+        }
+      }
+    },
+    "maintenance.history.failed": {
+      "comment": "Maintenance history table — status column, entry.ok false.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败"
+          }
+        }
+      }
+    },
+    "maintenance.history.no": {
+      "comment": "Maintenance history table — dry-run column, false.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "否"
+          }
+        }
+      }
+    },
+    "maintenance.history.ok": {
+      "comment": "Maintenance history table — status column, entry.ok true. Distinct from status.pill.ok: a table cell, not a machine-health pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正常"
+          }
+        }
+      }
+    },
+    "maintenance.history.title": {
+      "comment": "Maintenance tab's action history section title (GET /audit, bounded to this machine).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maintenance history"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Historique de maintenance"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "维护历史"
+          }
+        }
+      }
+    },
+    "maintenance.history.yes": {
+      "comment": "Maintenance history table — dry-run column, true.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oui"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "是"
+          }
+        }
+      }
+    },
+    "maintenance.loading": {
+      "comment": "Maintenance tab's accessibility label while the first poll of capabilities/audit/docker-services/config is in flight.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading maintenance status…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chargement de l'état de maintenance…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载维护状态…"
+          }
+        }
+      }
+    },
+    "maintenance.notDeployed.hint": {
+      "comment": "Maintenance tab's notDeployed card — explains the neutral state, no deploy button exists in this app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maintenance actions become available once HomePortExploit is deployed on this machine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les actions de maintenance deviennent disponibles une fois HomePortExploit déployé sur cette machine."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此机器上部署 HomePortExploit 后，维护操作即可使用。"
+          }
+        }
+      }
+    },
+    "maintenance.preview.staleToken": {
+      "comment": "Maintenance preview sheet — the dry-run itself answered 409 (rare, mirrors hpm maintenance plan's own wording).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan expired or already used — run it again."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeton de plan expiré ou déjà consommé — relancer l'action."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "计划令牌已过期或已被使用——请重新执行该操作。"
+          }
+        }
+      }
+    },
+    "maintenance.preview.inconsistentState": {
+      "comment": "Maintenance preview sheet — the .executionTimedOut outcome is structurally unreachable from a dry-run (ExploitAPIClient.post only produces it for the execute phase); this fires only if that invariant breaks. Must not reuse describe(_:) (ExploitAPIContract.swift's \"only phrasing of each state\" contract covers states the machine can actually be in) and must not claim any of describe(.unreachable)'s causes (machine off, service down, ACL) — nothing here says why, only that nothing ran.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Internal inconsistency before execution — nothing was launched. Retry the preview."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incohérence interne avant exécution — aucune action n'a été lancée. Relancez l'aperçu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行前检测到内部不一致——未启动任何操作。请重试预览。"
+          }
+        }
+      }
+    },
+    "maintenance.reboot.poweroff": {
+      "comment": "Maintenance tab reboot card — powers the machine off.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power off the machine"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Éteindre la machine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭机器"
+          }
+        }
+      }
+    },
+    "maintenance.reboot.reboot": {
+      "comment": "Maintenance tab reboot card — reboots the machine (distinct from Restart, which only restarts the Homeport service).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reboot the machine"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrer la machine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启机器"
+          }
+        }
+      }
+    },
+    "maintenance.reboot.title": {
+      "comment": "Maintenance tab reboot/poweroff card title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alimentation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电源"
+          }
+        }
+      }
+    },
+    "maintenance.state.attention": {
+      "comment": "Maintenance tab state pill: unreachable, contract out of range, too old, or the request was cancelled.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attention needed"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attention requise"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要注意"
+          }
+        }
+      }
+    },
+    "maintenance.state.available": {
+      "comment": "Maintenance tab state pill: HomePortExploit answered and serves this contract.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disponible"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用"
+          }
+        }
+      }
+    },
+    "maintenance.state.cancelled": {
+      "comment": "Maintenance tab state pill (fix round 1, m2): the calling task vanished mid-request (a tab switch while `capabilities`/`audit`/etc. was in flight) — the contract is explicit this is never a signal on the machine, so it is neutral, not the unreachable/unavailable warning group.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not available right now"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non disponible pour l'instant"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时不可用"
+          }
+        }
+      }
+    },
+    "maintenance.state.forbidden": {
+      "comment": "Maintenance tab state pill: this Mac's tailnet identity is not the admin declared on this machine.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access denied"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès refusé"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "访问被拒"
+          }
+        }
+      }
+    },
+    "maintenance.state.notDeployed": {
+      "comment": "Maintenance tab state pill: no exploitPort in fleet.yaml — the most common state on the real fleet, not an error.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not deployed"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non déployé"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未部署"
+          }
+        }
+      }
+    },
+    "maintenance.state.refresh": {
+      "comment": "Task 6b (n2): the reload button under the .available pill (a green \"Disponible\" badge) reused \"Retry\", which announces a failure where none happened. Distinct key, used only there — the .unreachable/.unavailable/.forbidden card below keeps \"Retry\", which is accurate there.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiser"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新"
+          }
+        }
+      }
+    },
+    "maintenance.unknownAction": {
+      "comment": "Maintenance dry-run/execute — 404: this Pi's catalog does not include the action (distinct from the service being too old).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This action is not in this machine's catalog."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action absente du catalogue de cette machine."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作不在此机器的目录中。"
           }
         }
       }
@@ -4426,6 +5505,30 @@
         }
       },
       "comment": "UpdatesTabView versionRow accessibility label, update available."
+    },
+    "maintenance.execute.uncertain.detail.reboot": {
+      "comment": "Task 6b (A2) / fix round, I4: same transport timeout during execute, but for reboot/poweroff specifically — reloadUnlessRebooting never re-polls after those two actions (it would just fold the tab onto the unreachable/ACL card while the machine is mid power-cycle), so this variant must not claim the history below already carries the answer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transport timed out during the reboot or shutdown. The server may have finished the action anyway, but this tab wasn't reloaded — come back and check the history in a moment."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le délai de transport a été dépassé pendant le redémarrage ou l'extinction. Le serveur a peut-être quand même terminé l'action, mais cet onglet n'a pas été rechargé — revenez consulter l'historique dans un instant."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启或关机过程中传输超时。服务器可能仍然完成了该操作，但此标签页未重新加载——请稍后回来查看历史记录。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

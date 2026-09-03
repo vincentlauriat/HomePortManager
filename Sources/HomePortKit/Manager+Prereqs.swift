@@ -20,6 +20,9 @@ public final class HomeportManager {
     public let report: Reporter
     /// nil when the state directory is unusable: the journal degrades, actions never block.
     public let history: HistoryStore?
+    /// The HomePortExploit surface on the Pi (Manager+Maintenance.swift) — injectable like
+    /// `runner`, so a test drives the maintenance actions without a network or a machine.
+    public let exploit: ExploitAPIClient
     /// Depth guard + captured report lines for `journaled` (Manager+Journal.swift).
     let journal: JournalState
 
@@ -29,6 +32,7 @@ public final class HomeportManager {
                 jobsRoot: String = BackupJobStore.defaultRoot,
                 runner: ProcessRunner = DefaultProcessRunner(),
                 history: HistoryStore? = nil,
+                exploit: ExploitAPIClient = ExploitAPIClient(),
                 report: @escaping Reporter = { print($0) }) {
         self.ssh = ssh
         self.releases = releases
@@ -37,6 +41,7 @@ public final class HomeportManager {
         self.jobsRoot = expandPath(jobsRoot)
         self.runner = runner
         self.history = history
+        self.exploit = exploit
         // The journal's output is the report stream — the one narrative channel every
         // action shares — so each line is duplicated into the capture buffer while a
         // journaled action is running, even when the frontend passes `{ _ in }`.

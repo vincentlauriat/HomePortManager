@@ -29,7 +29,7 @@ hpm status --all                                   # fleet table: version, servi
 
 | Command | What it does |
 |---|---|
-| `hpm machine add/list/remove` | Manage the inventory (`~/.config/hpm/fleet.yaml`, no secrets) |
+| `hpm machine add/list/remove` | Manage the inventory (`~/.config/hpm/fleet.yaml`, no secrets); `add --exploit-port <port>` opts a machine into `hpm maintenance`/the app's Maintenance tab |
 | `hpm status [m\|--all]` | Installed vs latest version, service state, healthz, last backup |
 | `hpm releases` | List Homeport tags/releases on GitHub |
 | `hpm prereqs <m> [--fix]` | Verify machine prerequisites, optionally apt-install them |
@@ -44,6 +44,7 @@ hpm status --all                                   # fleet table: version, servi
 | `hpm restart <m>` | Restart the service, verify healthz |
 | `hpm doctor <m>` | Full diagnosis: prereqs, service, healthz, version coherence, disk, config drift |
 | `hpm unlock <m>` | Release a mutation lock left by a dead or expired process (refuses while its holder is alive and under the 30 min TTL) |
+| `hpm maintenance actions\|plan\|run\|history <m>` | Machines with `exploitPort` set: HomePortExploit-delegated actions (`apt-update`, `reboot`/`poweroff`, `docker-update`) — `plan` dry-runs and shows the preview, `run` chains dry-run → confirm → execute, `history` shows what HomePortExploit recorded |
 
 Destructive commands (`update`, `restore`, `config push`, `remove`) ask for confirmation; `--yes`
 bypasses it for scripting. `--all` runs machines in parallel (output grouped per machine)
@@ -64,9 +65,9 @@ Build a signed, notarized DMG: `./Scripts/release.sh <version>` → `release/Hom
 
 In progress, on `main` but not yet cut into a release: a **control center window** opened from
 the menu bar app — fleet dashboard, per-machine tabs (summary, embedded Homeport dashboard,
-logs, events, metrics, backups, shell, updates), a central task journal, scheduled backups that
-run on the Pi itself via systemd timers, and historised metrics served by Homeport's own API.
-Trilingual UI (French, English, Chinese).
+logs, events, metrics, backups, shell, updates, maintenance), a central task journal, scheduled
+backups that run on the Pi itself via systemd timers, and historised metrics served by
+Homeport's own API. Trilingual UI (French, English, Chinese).
 
 - [x] Epic 1 — pilot the fleet from a single window (control center window, task journal,
       confirmed machine actions, embedded Homeport dashboard, centralized logs)

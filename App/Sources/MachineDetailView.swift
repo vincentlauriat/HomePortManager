@@ -1,8 +1,8 @@
 import SwiftUI
 import HomePortKit
 
-/// The eight tabs of a machine sheet, in the order the epic fixes. Their raw values are the
-/// ⌘1…⌘8 shortcuts, so the numbering is the contract, not an accident of ordering.
+/// The nine tabs of a machine sheet, in the order the epic fixes. Their raw values are the
+/// ⌘1…⌘9 shortcuts, so the numbering is the contract, not an accident of ordering.
 enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     case summary = 1
     case dashboard
@@ -12,6 +12,7 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     case backups
     case shell
     case updates
+    case maintenance
 
     var id: Int { rawValue }
 
@@ -25,6 +26,7 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
         case .backups: return "Backups"
         case .shell: return "Shell"
         case .updates: return "Updates"
+        case .maintenance: return "Maintenance"
         }
     }
 
@@ -33,7 +35,7 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     /// that starts lying is caught the moment the plan changes.
     var pendingMessage: LocalizedStringKey? {
         switch self {
-        case .summary, .dashboard, .logs, .events, .metrics, .updates: return nil
+        case .summary, .dashboard, .logs, .events, .metrics, .updates, .maintenance: return nil
         case .backups: return "Backup jobs and restores arrive with story 3.2, archive consolidation and the job view."
         case .shell: return "The embedded terminal arrives with story 3.4, the embedded shell."
         }
@@ -48,13 +50,13 @@ enum MachineTab: Int, CaseIterable, Identifiable, Hashable {
     var fillsSheet: Bool {
         switch self {
         case .dashboard, .logs, .events: return true
-        case .summary, .metrics, .backups, .shell, .updates: return false
+        case .summary, .metrics, .backups, .shell, .updates, .maintenance: return false
         }
     }
 }
 
-/// A machine sheet: its coloured banner, the eight tabs, and a populated Summary. The seven
-/// other tabs exist, take focus, answer their shortcut and say what will fill them.
+/// A machine sheet: its coloured banner, the nine tabs, and a populated Summary. Backups and
+/// Shell exist, take focus, answer their shortcut and say what will fill them.
 struct MachineDetailView: View {
     @ObservedObject var model: FleetModel
     @ObservedObject var commands: ControlCenterCommands
@@ -108,7 +110,7 @@ struct MachineDetailView: View {
                   let requested = MachineTab(rawValue: index) else { return }
             tab = requested
         }
-        // ⌘1…⌘8 only exist while a machine sheet is showing; on the fleet view they must
+        // ⌘1…⌘9 only exist while a machine sheet is showing; on the fleet view they must
         // travel back up the responder chain rather than be swallowed. The journal can
         // advance from the CLI while no window shows, so it reloads on appearance too.
         .onAppear {
@@ -249,13 +251,13 @@ struct MachineDetailView: View {
                           store: eventFeeds, machine: machine, selectTab: { tab = $0 })
         // Every case is named on purpose: a future tab that starts filling the sheet must
         // fail visibly here rather than silently render the dashboard's web view.
-        case .summary, .metrics, .backups, .shell, .updates:
+        case .summary, .metrics, .backups, .shell, .updates, .maintenance:
             EmptyView()
         }
     }
 
     private var tabBar: some View {
-        // A folded tab stays reachable two ways: from this menu, and from its ⌘1–⌘8 shortcut,
+        // A folded tab stays reachable two ways: from this menu, and from its ⌘1–⌘9 shortcut,
         // which the window handles in performKeyEquivalent and never consulted this bar.
         OverflowRow(
             items: MachineTab.allCases,
@@ -294,6 +296,8 @@ struct MachineDetailView: View {
                            machine: machine, goToUpdates: { tab = .updates })
         case .updates:
             UpdatesTabView(model: model, machine: machine, pendingAction: $pendingAction)
+        case .maintenance:
+            MaintenanceTabView(model: model, machine: machine)
         case .backups, .shell:
             if let pending = tab.pendingMessage {
                 EmptyStateView(title: tab.title, message: pending)

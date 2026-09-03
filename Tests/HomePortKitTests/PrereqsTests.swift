@@ -9,6 +9,11 @@ func makeTestManager(mock: MockProcessRunner,
                      configRoot: String = NSTemporaryDirectory() + "hpm-configs-\(UUID().uuidString)",
                      jobsRoot: String = NSTemporaryDirectory() + "hpm-jobs-\(UUID().uuidString)",
                      historyPath: String? = nil,
+                     // No suite gets a network by default: a seam that throws turns an
+                     // unexpected exploit call into a loud failure, never a real request.
+                     exploit: ExploitAPIClient = ExploitAPIClient(fetch: { _ in
+                         throw HPMError("aucun appel exploit attendu dans ce test")
+                     }),
                      report: @escaping Reporter = { _ in }) -> HomeportManager {
     HomeportManager(
         ssh: SSHClient(runner: mock),
@@ -18,6 +23,7 @@ func makeTestManager(mock: MockProcessRunner,
         jobsRoot: jobsRoot,
         runner: mock,
         history: historyPath.flatMap { try? HistoryStore(path: $0) },
+        exploit: exploit,
         report: report
     )
 }
