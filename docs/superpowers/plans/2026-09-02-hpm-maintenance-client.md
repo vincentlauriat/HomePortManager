@@ -21,6 +21,8 @@
 - **Aucune requête réseau dans un test.** L'injection se fait par la couture `fetch`, comme `HomeportAPIClientTests` le fait déjà.
 - **Aucun état porté par la couleur seule** (UX-DR7) ; toute action et toute pastille porte un label VoiceOver.
 - Vérification : `swift test` (404 tests au départ) et `Scripts/verify-app-build.sh` rc 0.
+- **Un `HomeportManager` par action de maintenance, jamais d'instance mise en cache.** Le tampon de capture du journal (`JournalState.lines`) est partagé par instance : deux actions concurrentes sur un même manager mélangent leur `output`, et une action **synchrone** concurrente d'une `async` peut relâcher un verrou qu'elle ne détient pas — le mode de défaillance exact qu'AD-12 existe pour empêcher. C'est aujourd'hui inatteignable, parce que l'app fabrique un manager neuf dans chaque `Task.detached` (`App/Sources/FleetModel.swift:475-481`) et que le CLI en construit un par invocation (`Sources/hpm/HPM.swift:39`). **Cette contrainte préserve un invariant existant, elle n'en introduit pas.**
+- Vérification : `swift test 2>&1 | grep -E "Executed [0-9]+ test|error:|warning:"` **et** `swift build --build-tests`. Le filtre doit inclure `warning:` : un `try await journaled(…)` dont le corps ne contient aucun `await` résout silencieusement vers la surcharge **synchrone**, le compilateur ne le signale qu'en avertissement, et `swift build` seul ne compile pas les tests. Un test vacant est déjà passé au vert ainsi, en ne prouvant rien.
 - Pas de `Co-Authored-By: Claude` dans les messages de commit (règle du dépôt).
 
 ---
