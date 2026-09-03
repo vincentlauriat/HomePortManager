@@ -400,6 +400,31 @@ final class ExploitAPIClientTests: XCTestCase {
             return XCTFail("409 doit devenir staleToken, pas une erreur brute")
         }
     }
+
+    func testUnknownActionOn404IsDistinctFromNotServed() async {
+        // Le handshake a forcément réussi avant cet appel : ce 404 dit « action inconnue de ce
+        // catalogue », pas « serveur antérieur au contrat v1 ». Les deux se réparent
+        // différemment et ne doivent pas se confondre (fix round 2).
+        let api = client { _ in HTTPReply(status: 404, body: Data()) }
+        guard case .unknownAction = await api.dryRun(.aptUpdate, on: machine) else {
+            return XCTFail("404 sur une route d'action doit devenir unknownAction, pas notServed")
+        }
+    }
+
+    func testSwiftCancellationErrorIsReportedAsCancelled() async {
+        let api = client { _ in throw CancellationError() }
+        let state = await api.capabilities(of: machine)
+        XCTAssertEqual(state, .cancelled)
+    }
+
+    func testURLErrorCancelledIsAlsoReportedAsCancelled() async {
+        // URLSession ne lève pas toujours `CancellationError` : selon le moment où l'annulation
+        // survient, elle arrive en `URLError(.cancelled)`. Un refactor qui reviendrait à
+        // `error is CancellationError` seul repasserait ce test au rouge (fix round 2).
+        let api = client { _ in throw URLError(.cancelled) }
+        let state = await api.capabilities(of: machine)
+        XCTAssertEqual(state, .cancelled)
+    }
 }
 ```
 
@@ -418,8 +443,20 @@ import Foundation
 /// verrait que l'URL ne pourrait pas vérifier le corps, et le corps est la moitié du contrat.
 public typealias ExploitHTTPFetch = @Sendable (URLRequest) async throws -> HTTPReply
 
-/// Les quatre actions du catalogue v1, typées. Le `params_schema` renvoyé par `/actions` est
-/// transporté, jamais interprété (AD-4) : pas de générateur de formulaire.
+/// Conformance ajoutée ici, pas dans `ExploitAPIContract.swift` (tâche 2) : les trois lectures
+/// rendent leur échec via `Result<Value, ExploitAvailability>`, ce que `Result` exige de son
+/// type `Failure`. `ExploitAvailability` reste une valeur rendue, jamais lancée (AD, cf.
+/// `ExploitOutcome`) — cette conformance ne l'expose à aucun `throw`.
+extension ExploitAvailability: Error {}
+
+/// Les trois actions du catalogue v1 qui se déclenchent réellement par le flux
+/// dry-run → execute. `homeport-config` figure dans `/capabilities` (§3 du contrat) mais ne
+/// figure pas ici : sa lecture est un simple `GET` (`homeportConfig(of:)`), et son écriture
+/// reste `hpm config push` en SSH — un cas d'enum qu'on ne peut jamais exécuter serait un
+/// piège pour le prochain lecteur.
+///
+/// Le `params_schema` renvoyé par `/actions` est transporté, jamais interprété (AD-4) : pas
+/// de générateur de formulaire.
 public enum ExploitAction: Equatable, Sendable {
     case aptUpdate
     case reboot(mode: RebootMode)
@@ -443,6 +480,28 @@ public enum ExploitAction: Equatable, Sendable {
         case .aptUpdate: return [:]
         case .reboot(let mode): return ["mode": mode.rawValue]
         case .dockerUpdate(let service): return ["service": service]
+        }
+    }
+
+    /// Initialiseur faillible consommé par le CLI (tâche 5) : refuse un nom hors catalogue,
+    /// un `reboot` sans `mode` valide, ou un `docker-update` sans `service`, avant d'émettre —
+    /// plutôt que de laisser le serveur répondre `422`.
+    public init(name: String, mode: String?, service: String?) throws {
+        switch name {
+        case "apt-update":
+            self = .aptUpdate
+        case "reboot":
+            guard let mode, let parsed = RebootMode(rawValue: mode) else {
+                throw HPMError("reboot requiert --mode reboot|poweroff")
+            }
+            self = .reboot(mode: parsed)
+        case "docker-update":
+            guard let service, !service.isEmpty else {
+                throw HPMError("docker-update requiert --service <nom>")
+            }
+            self = .dockerUpdate(service: service)
+        default:
+            throw HPMError("action inconnue: \(name)")
         }
     }
 }
@@ -486,7 +545,15 @@ public extension JSONValue {
     var displayText: String {
         switch self {
         case .string(let s): return s
-        case .number(let n): return n == n.rounded() ? String(Int(n)) : String(n)
+        // `Int(n)` trappe si `n` dépasse la capacité d'un `Int` (ex. 1e30) — `detail` est
+        // transporté sans être interprété (AD-4), donc rien ne garantit qu'un nombre qui y
+        // arrive tienne dans un `Int`. `Int(exactly:)` échoue proprement à la place ; on
+        // retombe alors sur la représentation `Double`.
+        case .number(let n):
+            if n.isFinite, n == n.rounded(), let whole = Int(exactly: n) {
+                return String(whole)
+            }
+            return String(n)
         case .bool(let b): return b ? "oui" : "non"
         case .null: return "—"
         case .array(let items): return items.map(\.displayText).joined(separator: ", ")
@@ -529,32 +596,42 @@ public enum ExploitOutcome: Equatable, Sendable {
     /// consomme donc le jeton **et** échoue. Corollaire pour ce client : ne jamais rejouer
     /// un `plan_id` avec d'autres paramètres, et traiter tout 409 comme définitif.
     case staleToken
+    /// 404 sur `/actions/{name}/dry-run` ou `/execute` — l'action envoyée ne figure pas dans le
+    /// catalogue de ce serveur. Distinct de `.unavailable(.notServed)` : ce dernier veut dire
+    /// « antérieur à `/capabilities` », et le handshake qui a précédé cet appel a justement
+    /// réussi — c'est un désaccord sur *quelles* actions sont servies, pas sur si le contrat
+    /// l'est. Pas un cas d'`ExploitAvailability` : ce n'est pas un état de la machine.
+    case unknownAction
     case unavailable(ExploitAvailability)
 }
 
-/// Une ligne du journal du Pi, telle que `audit.recent()` la sert : sept champs, et **pas
-/// d'identifiant**. Le serveur n'en expose aucun ; en fabriquer un serait inventer un champ que
-/// le contrat ne porte pas, donc ce type n'est délibérément pas `Identifiable` — c'est à la vue
-/// de fournir l'identité de ses lignes.
+/// Une ligne de `GET /audit` (§8), exactement les sept champs que `homeportexploit/audit.py`
+/// sert — pas de `id` : le serveur n'en garde aucun. Une vue qui a besoin d'une identité stable
+/// s'en construit une (index, ou composite `ts`+`action`) ; ce n'est pas au modèle d'en inventer
+/// une que le contrat ne porte pas.
 public struct ExploitAuditEntry: Equatable, Sendable {
-    /// Secondes Unix, telles que servies. `timestamp` en est la lecture commode.
-    public let ts: Int
+    /// Calculé depuis `ts` (secondes Unix, §8) — c'est cette forme qu'un affichage voudra.
+    public let timestamp: Date
     public let identity: String
     public let action: String
-    /// JSON sérialisé, servi comme une chaîne. Transporté sans être interprété (AD-4).
+    /// Les paramètres de l'action, sérialisés en JSON dans une chaîne (§8). Transporté tel
+    /// quel : un client qui veut les paramètres structurés reparse ce champ lui-même.
     public let params: String
-    /// Servis en entiers 0/1 par SQLite, exposés en booléens ici.
+    /// `dry_run` arrive en entier `0`/`1` côté fil (§8 : « pas un booléen JSON ») ; exposé ici
+    /// en `Bool`, la forme qu'un appelant Swift veut.
     public let dryRun: Bool
     public let ok: Bool
     public let message: String
-
-    public var timestamp: Date { Date(timeIntervalSince1970: TimeInterval(ts)) }
 }
 
-public struct ExploitDockerService: Equatable, Sendable, Identifiable {
+public struct ExploitDockerService: Equatable, Sendable, Identifiable, Decodable {
     public var id: String { name }
     public let name: String
     public let image: String
+
+    private enum CodingKeys: String, CodingKey {
+        case name, image
+    }
 }
 
 public struct ExploitAPIClient: Sendable {
@@ -599,13 +676,23 @@ public struct ExploitAPIClient: Sendable {
         let actions: [String]
     }
 
+    /// Une annulation vue par `URLSession` n'est pas toujours une `CancellationError` Swift :
+    /// selon le moment où elle survient, elle arrive aussi en `URLError(.cancelled)` — comme
+    /// `HomeportAPIClient.isCancellation` (privé à son fichier, donc dupliqué ici plutôt que
+    /// réutilisé) le documente déjà. Une tâche annulée est un onglet fermé, jamais un signal
+    /// sur la machine.
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        return (error as? URLError)?.code == .cancelled
+    }
+
     public func capabilities(of machine: Machine) async -> ExploitAvailability {
         guard let url = Self.endpoint("capabilities", on: machine) else { return .notDeployed }
         let reply: HTTPReply
         do {
             reply = try await fetch(URLRequest(url: url))
         } catch {
-            if error is CancellationError { return .cancelled }
+            if Self.isCancellation(error) { return .cancelled }
             return .unreachable(String(describing: error))
         }
         switch reply.status {
@@ -650,13 +737,16 @@ public struct ExploitAPIClient: Sendable {
         do {
             reply = try await fetch(request)
         } catch {
-            if error is CancellationError { return .unavailable(.cancelled) }
+            if Self.isCancellation(error) { return .unavailable(.cancelled) }
             return .unavailable(.unreachable(String(describing: error)))
         }
         switch reply.status {
         case 200: break
         case 403: return .unavailable(.forbidden)
-        case 404: return .unavailable(.unavailable(.notServed))
+        // Le handshake a réussi avant cet appel (sinon on ne serait pas ici) : ce 404 ne dit
+        // pas « serveur trop vieux », il dit « action inconnue de ce catalogue ». Confondre les
+        // deux enverrait l'utilisateur mettre à jour un serveur qui n'a rien de périmé.
+        case 404: return .unknownAction
         case 409: return .staleToken
         default: return .unavailable(.unreachable("HTTP \(reply.status)"))
         }
@@ -664,6 +754,103 @@ public struct ExploitAPIClient: Sendable {
             return .unavailable(.unreachable("réponse illisible"))
         }
         return .completed(payload.result)
+    }
+
+    // MARK: Les trois lectures (§8, §9, §10)
+
+    /// La forme réelle d'une ligne `/audit` (§8, vérifié contre `homeportexploit/audit.py`) :
+    /// `ts` en secondes Unix, `dry_run`/`ok` en `0`/`1`, aucun `id`. `params` est transporté
+    /// tel quel — chaîne JSON, jamais reparsée ici (AD-4).
+    private struct AuditEntryPayload: Decodable {
+        let ts: Int64
+        let identity: String
+        let action: String
+        let params: String
+        let dry_run: Int
+        let ok: Int
+        let message: String
+    }
+
+    /// `GET /audit?limit=` — bornée à la machine interrogée (§8) : ce client ne fusionne
+    /// jamais les résultats de plusieurs machines.
+    public func audit(of machine: Machine, limit: Int) async -> Result<[ExploitAuditEntry], ExploitAvailability> {
+        await get([AuditEntryPayload].self, path: "audit", query: [URLQueryItem(name: "limit", value: String(limit))],
+                   on: machine) { payloads in
+            payloads.map {
+                ExploitAuditEntry(timestamp: Date(timeIntervalSince1970: TimeInterval($0.ts)),
+                                   identity: $0.identity, action: $0.action, params: $0.params,
+                                   dryRun: $0.dry_run != 0, ok: $0.ok != 0, message: $0.message)
+            }
+        }
+    }
+
+    /// `GET /docker-services` — filtré côté serveur sur `name`/`image` uniquement (§9).
+    public func dockerServices(of machine: Machine) async -> Result<[ExploitDockerService], ExploitAvailability> {
+        await get([ExploitDockerService].self, path: "docker-services", on: machine) { $0 }
+    }
+
+    private struct HomeportConfigPayload: Decodable {
+        let content: String
+    }
+
+    /// `GET /homeport-config/current` — lecture seule ; l'écriture reste `hpm config push`
+    /// en SSH (décision actée, brief tâche 3).
+    ///
+    /// Ne partage PAS le motif `get(...)` des deux autres lectures : §10 donne à son 404 un
+    /// sens propre — « configuration Homeport illisible ou introuvable », le serveur sert la
+    /// route très bien — sans rapport avec un serveur antérieur au contrat v1. Rendre ce cas
+    /// en `.unavailable(.notServed)` via le motif partagé enverrait l'appelant "mettre à jour
+    /// HomePortExploit" pour un fichier manquant côté Homeport. `.success(nil)` porte ce sens
+    /// sans ajouter de cas à `ExploitAvailability` : ce n'est pas un état de la machine, c'est
+    /// l'absence d'un fichier.
+    public func homeportConfig(of machine: Machine) async -> Result<String?, ExploitAvailability> {
+        guard let url = Self.endpoint("homeport-config/current", on: machine) else { return .failure(.notDeployed) }
+        let reply: HTTPReply
+        do {
+            reply = try await fetch(URLRequest(url: url))
+        } catch {
+            if Self.isCancellation(error) { return .failure(.cancelled) }
+            return .failure(.unreachable(String(describing: error)))
+        }
+        switch reply.status {
+        case 200: break
+        case 403: return .failure(.forbidden)
+        case 404: return .success(nil)
+        default: return .failure(.unreachable("HTTP \(reply.status)"))
+        }
+        guard let payload = try? JSONDecoder().decode(HomeportConfigPayload.self, from: reply.body) else {
+            return .failure(.unreachable("réponse illisible"))
+        }
+        return .success(payload.content)
+    }
+
+    /// Le motif commun à `audit(of:)` et `dockerServices(of:)` : `endpoint(...)` → `nil` donne
+    /// `.notDeployed`, puis le même classement 200 / 403 / 404 / défaut que `capabilities(of:)`.
+    /// `homeportConfig(of:)` ne le partage pas (voir son commentaire) : son 404 ne veut pas dire
+    /// la même chose, et tordre ce motif pour le faire mentir sur un cas serait pire que le
+    /// dédoubler.
+    private func get<Payload: Decodable, Value>(
+        _ type: Payload.Type, path: String, query: [URLQueryItem] = [], on machine: Machine,
+        map: (Payload) -> Value
+    ) async -> Result<Value, ExploitAvailability> {
+        guard let url = Self.endpoint(path, on: machine, query: query) else { return .failure(.notDeployed) }
+        let reply: HTTPReply
+        do {
+            reply = try await fetch(URLRequest(url: url))
+        } catch {
+            if Self.isCancellation(error) { return .failure(.cancelled) }
+            return .failure(.unreachable(String(describing: error)))
+        }
+        switch reply.status {
+        case 200: break
+        case 403: return .failure(.forbidden)
+        case 404: return .failure(.unavailable(.notServed))
+        default: return .failure(.unreachable("HTTP \(reply.status)"))
+        }
+        guard let payload = try? JSONDecoder().decode(Payload.self, from: reply.body) else {
+            return .failure(.unreachable("réponse illisible"))
+        }
+        return .success(map(payload))
     }
 }
 ```
@@ -674,15 +861,24 @@ public struct ExploitAPIClient: Sendable {
 
 ```swift
 func testAuditDecodesEntriesOfThisMachineOnly() async {
+    // Fixture conforme à ce que `homeportexploit/audit.py` sert réellement (§8) : `ts` en
+    // secondes Unix, `dry_run`/`ok` en `0`/`1`, `params` en chaîne JSON, aucun `id`. La
+    // première version de ce test avait une fixture auto-cohérente avec un mauvais modèle
+    // (`id`, `timestamp` ISO 8601, booléens JSON) — corrigé après vérification du code
+    // Python amont, cf. fix round 1.
     let api = client { request in
         XCTAssertEqual(request.url?.query, "limit=50")
-        return self.ok(#"[{"id": 3, "timestamp": "2026-09-02T10:00:00Z", "identity": "vincent.lauriat@gmail.com", "action": "apt-update", "dry_run": true, "ok": true, "message": "5 paquet(s) à mettre à jour"}]"#)
+        return self.ok(#"[{"ts": 1756800000, "identity": "vincent.lauriat@gmail.com", "action": "apt-update", "params": "{}", "dry_run": 1, "ok": 1, "message": "5 paquet(s) à mettre à jour"}]"#)
     }
     guard case .success(let entries) = await api.audit(of: machine, limit: 50) else {
         return XCTFail("décodage attendu")
     }
     XCTAssertEqual(entries.first?.action, "apt-update")
-    XCTAssertTrue(entries.first?.dryRun == true)
+    // La conversion 0/1 → Bool et ts → Date, pas seulement la présence des champs.
+    XCTAssertEqual(entries.first?.dryRun, true)
+    XCTAssertEqual(entries.first?.ok, true)
+    XCTAssertEqual(entries.first?.timestamp, Date(timeIntervalSince1970: 1756800000))
+    XCTAssertEqual(entries.first?.params, "{}")
 }
 
 func testDockerServicesPopulateTheSelector() async {
@@ -693,12 +889,45 @@ func testDockerServicesPopulateTheSelector() async {
     XCTAssertEqual(services.map(\.name), ["homeassistant"])
 }
 
+func testDockerServicesForbiddenIsItsOwnFailure() async {
+    // Le motif partagé `get(...)` (audit/docker-services) n'était testé que via
+    // `homeportConfig`, qui ne le partage plus depuis le fix round 1 — les branches
+    // 403/404 du motif partagé lui-même n'avaient donc plus de test (fix round 2).
+    let api = client { _ in HTTPReply(status: 403, body: Data()) }
+    guard case .failure(let availability) = await api.dockerServices(of: machine) else {
+        return XCTFail("403 doit rester une panne, pas une liste vide")
+    }
+    XCTAssertEqual(availability, .forbidden)
+}
+
+func testAuditNotFoundMeansTooOldToServeTheRoute() async {
+    // À la différence de `homeportConfig`, `/audit` n'a pas de sens propre pour son 404 dans
+    // le contrat (§8 ne le documente pas) : le motif partagé continue de le traiter comme
+    // un serveur antérieur au contrat, cohérent avec `capabilities(of:)`.
+    let api = client { _ in HTTPReply(status: 404, body: Data()) }
+    guard case .failure(let availability) = await api.audit(of: machine, limit: 50) else {
+        return XCTFail("404 doit rester une panne du motif partagé")
+    }
+    XCTAssertEqual(availability, .unavailable(.notServed))
+}
+
 func testHomeportConfigIsReadOnlyText() async {
     let api = client { _ in self.ok(#"{"content": "services:\n  - name: ha\n"}"#) }
     guard case .success(let text) = await api.homeportConfig(of: machine) else {
         return XCTFail("décodage attendu")
     }
-    XCTAssertTrue(text.contains("services:"))
+    XCTAssertEqual(text, "services:\n  - name: ha\n")
+}
+
+func testHomeportConfigMissingFileIsNilNotNotServed() async {
+    // §10 : ce 404 signifie « configuration Homeport illisible ou introuvable », pas
+    // « serveur antérieur au contrat v1 ». `.success(nil)` porte ce sens sans ajouter de
+    // cas à `ExploitAvailability`.
+    let api = client { _ in HTTPReply(status: 404, body: Data()) }
+    guard case .success(let text) = await api.homeportConfig(of: machine) else {
+        return XCTFail("un 404 sur cette route n'est pas une panne de machine")
+    }
+    XCTAssertNil(text)
 }
 
 func testUnknownActionNameIsRejectedBeforeAnyRequest() {
@@ -712,6 +941,15 @@ func testAptUpdateDetailRendersItsPackageList() throws {
     let json = #"{"ok": true, "message": "5 paquet(s)", "detail": {"packages": ["chromium/stable 1.2 arm64"]}, "plan_id": "x"}"#
     let payload = try JSONDecoder().decode(ExploitResultPayload.self, from: Data(json.utf8))
     XCTAssertTrue(payload.result.detail.displayLines.contains { $0.contains("chromium") })
+}
+
+func testDisplayTextDoesNotTrapOnANumberLargerThanInt() throws {
+    // `detail` est transporté sans être interprété (AD-4) : rien ne garantit qu'un nombre
+    // qui y arrive tienne dans un `Int`. `Int(1e30)` trappe ; `displayText` ne doit pas
+    // (fix round 2).
+    let json = #"{"ok": true, "message": "m", "detail": {"huge": 1e30}, "plan_id": null}"#
+    let payload = try JSONDecoder().decode(ExploitResultPayload.self, from: Data(json.utf8))
+    XCTAssertEqual(payload.result.detail.displayLines, ["huge: 1e+30"])
 }
 ```
 
