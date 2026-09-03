@@ -5505,6 +5505,30 @@
         }
       },
       "comment": "UpdatesTabView versionRow accessibility label, update available."
+    },
+    "maintenance.execute.uncertain.detail.reboot": {
+      "comment": "Task 6b (A2) / fix round, I4: same transport timeout during execute, but for reboot/poweroff specifically — reloadUnlessRebooting never re-polls after those two actions (it would just fold the tab onto the unreachable/ACL card while the machine is mid power-cycle), so this variant must not claim the history below already carries the answer.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transport timed out during the reboot or shutdown. The server may have finished the action anyway, but this tab wasn't reloaded — come back and check the history in a moment."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le délai de transport a été dépassé pendant le redémarrage ou l'extinction. Le serveur a peut-être quand même terminé l'action, mais cet onglet n'a pas été rechargé — revenez consulter l'historique dans un instant."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启或关机过程中传输超时。服务器可能仍然完成了该操作，但此标签页未重新加载——请稍后回来查看历史记录。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

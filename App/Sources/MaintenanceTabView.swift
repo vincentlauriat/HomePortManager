@@ -41,10 +41,11 @@ struct MaintenanceTabView: View {
     /// would misdescribe a clean success. Server content, shown verbatim, never translated.
     @State private var maintenanceSuccess: String?
     /// A2 (task 6b): a transport timeout during `execute` — the server may have gone all the
-    /// way despite the client giving up on the wait. No dynamic content (a timeout means no
-    /// reply was ever read), so a `Bool` is enough — unlike `maintenanceSuccess`, which carries
-    /// the server's own message.
-    @State private var maintenanceUncertain = false
+    /// way despite the client giving up on the wait. Carries the action rather than a plain
+    /// `Bool` (fix round, I4): `reloadUnlessRebooting` never re-polls on `.reboot`, so the
+    /// banner's wording has to know whether it can truthfully point at "the history below" —
+    /// see `MaintenanceUncertainView`.
+    @State private var maintenanceUncertain: ExploitAction?
 
     /// Disables every maintenance button while either lane mutates this machine: the kit's
     /// per-machine lock (AD-12) is shared with `FleetModel.run`'s own actions, so a Backup in
@@ -69,8 +70,11 @@ struct MaintenanceTabView: View {
             if let maintenanceSuccess {
                 MaintenanceSuccessView(message: maintenanceSuccess)
             }
-            if maintenanceUncertain {
-                MaintenanceUncertainView()
+            if let maintenanceUncertain {
+                MaintenanceUncertainView(isReboot: {
+                    if case .reboot = maintenanceUncertain { return true }
+                    return false
+                }())
             }
             stateCard
             if case .available(let caps) = capabilities {
@@ -169,7 +173,7 @@ struct MaintenanceTabView: View {
         maintenanceBusy = true
         maintenanceReport = nil
         maintenanceSuccess = nil
-        maintenanceUncertain = false
+        maintenanceUncertain = nil
         let target = machine
         Task {
             let result = await withExternalLock { await attempt(action, planID: nil, target: target) }
@@ -192,7 +196,7 @@ struct MaintenanceTabView: View {
                 // A2 (task 6b): unreachable in practice — `maintenancePlan` always dry-runs,
                 // and `ExploitAPIClient.post` produces this outcome only for the `execute`
                 // phase (see `ExploitOutcome.executionTimedOut`). Kept for exhaustiveness, but
-                // not with `maintenanceUncertain = true` (fix round 1, m2): that banner reads
+                // not by setting `maintenanceUncertain` (fix round 1, m2): that banner reads
                 // "the server may have completed the action" — true for a stuck `execute`,
                 // a lie for a dry-run, which never consumes a plan and is always safe to
                 // retry. An `assertionFailure` plus a plain `.failure` report is honest about
@@ -231,7 +235,7 @@ struct MaintenanceTabView: View {
         maintenanceBusy = true
         maintenanceReport = nil
         maintenanceSuccess = nil
-        maintenanceUncertain = false
+        maintenanceUncertain = nil
         Task {
             let result = await withExternalLock {
                 await attempt(plan.action, planID: planID, target: plan.machine)
@@ -275,8 +279,12 @@ struct MaintenanceTabView: View {
                 // `MaintenanceSuccessView` (fix round 1, I2) getting its own rather than being
                 // forced into `LastReport.Kind`. Still re-polls (unless rebooting): the audit
                 // line the server may have written is exactly what "check the history" means.
+                // I4 (revue finale) : `maintenanceUncertain` porte l'action, pas juste un
+                // `Bool` — `MaintenanceUncertainView` en a besoin pour ne pas prétendre que
+                // "l'historique ci-dessous" porte déjà la réponse sur `.reboot`, le seul cas
+                // que `reloadUnlessRebooting` ne recharge jamais (voir son commentaire).
                 case .executionTimedOut:
-                    maintenanceUncertain = true
+                    maintenanceUncertain = plan.action
                     reloadUnlessRebooting(plan.action)
                 }
             }
@@ -290,6 +298,15 @@ struct MaintenanceTabView: View {
     /// unreachable on purpose (or, for A2, plausibly did), and re-polling right away would
     /// fold the whole tab onto the "unreachable … Tailscale ACL" card, under a report that
     /// has nothing to do with it.
+    ///
+    /// I4 (revue finale) : sur ce cas, `maintenance.execute.uncertain.detail` ne peut donc pas
+    /// dire "consultez l'historique ci-dessous" — cette liste reste l'instantané d'AVANT
+    /// l'exécution, elle ne peut par construction pas porter l'entrée que la phrase désigne.
+    /// Arbitrage retenu : reformuler ce cas plutôt que forcer le re-poll qu'on vient d'écarter
+    /// deux lignes plus haut — un re-poll ici tirerait une requête HTTP contre une machine qui
+    /// s'éteint, avec un délai `.read` (10 s) qui échouera très probablement, et remplacerait
+    /// "pas encore d'entrée" par une carte `.unreachable`, un mensonge pire que l'actuel.
+    /// `MaintenanceUncertainView(isReboot:)` porte cette distinction.
     private func reloadUnlessRebooting(_ action: ExploitAction) {
         switch action {
         case .reboot: break
@@ -715,12 +732,17 @@ private struct MaintenanceSuccessView: View {
 /// ink rather than success or critical: not a confirmed failure, not a confirmed success
 /// either. No dynamic content, unlike the other two: a timeout means no reply was ever read.
 private struct MaintenanceUncertainView: View {
+    /// I4 (revue finale) : `reloadUnlessRebooting` ne re-poll jamais après un `.reboot`/
+    /// `.poweroff` — voir son commentaire. La formulation par défaut de `.detail` pointe vers
+    /// "l'historique ci-dessous", qui n'est vrai que quand ce re-poll a bien eu lieu.
+    let isReboot: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
             Text("maintenance.execute.uncertain.title")
                 .styled(Theme.bodyStrong)
                 .foregroundStyle(Theme.semanticWarning)
-            Text("maintenance.execute.uncertain.detail")
+            Text(isReboot ? "maintenance.execute.uncertain.detail.reboot" : "maintenance.execute.uncertain.detail")
                 .styled(Theme.body)
                 .foregroundStyle(Theme.ink)
                 .lineSpacing(Theme.body.lineSpacing)
