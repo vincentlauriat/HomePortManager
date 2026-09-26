@@ -67,6 +67,19 @@ final class StatusTests: XCTestCase {
         XCTAssertTrue(mock.calls[0].line.contains("HOMEPORT_DATA_DIR="))
     }
 
+    func testServiceCheckFallsBackToLaunchctlWhenSystemctlIsAbsent() throws {
+        // mba13m5 (macOS): no systemd, so the combined command must branch to launchctl
+        // rather than assume every fleet machine is a Pi. Regression for the bug where
+        // `systemctl is-active` failing silently (`command not found`) reported the machine
+        // as CRITIQUE/serviceInactive despite the LaunchAgent actually running.
+        mock.stub(matching: "healthz", stdout: "v0.9.0\n::\nactive\n::\nOK\n::\n1\n::\n1%\n")
+        _ = try manager.status(of: machine)
+        let sent = mock.calls[0].line
+        XCTAssertTrue(sent.contains("command -v systemctl"), "must probe for systemctl before assuming it exists")
+        XCTAssertTrue(sent.contains("launchctl print"), "must fall back to launchctl on machines without systemd")
+        XCTAssertTrue(sent.contains(RemotePaths.launchdLabel), "must check the actual macOS LaunchAgent label")
+    }
+
     func testFormatUptime() {
         XCTAssertEqual(formatUptime(nil), "-")
         XCTAssertEqual(formatUptime(47), "47s")

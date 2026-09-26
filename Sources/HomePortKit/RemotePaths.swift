@@ -7,6 +7,11 @@ public enum RemotePaths {
     public static let unit = "homeport.service"
     public static let versionMarker = "/opt/homeport/.hpm-version"
 
+    /// macOS counterpart of `unit` — the LaunchAgent label from Homeport's
+    /// `deploy/macos/install.sh`. There is no systemd on macOS, so `status(of:)` checks this
+    /// via `launchctl` when `systemctl` isn't on the target's PATH.
+    public static let launchdLabel = "com.vincentlauriat.homeport"
+
     // Story 3.1: the autonomous scheduled-backup job deployed by `hpm backup apply` —
     // a separate service/timer pair from `unit`, invoked by systemd, never enabled itself.
     public static let backupUnit = "homeport-backup.service"
